@@ -82,9 +82,11 @@ body {
     transition: color 0.2s ease, transform 0.2s ease;
 }
 
-.menu-button:hover, .new-chat-button:hover {
+.menu-button:hover,
+.new-chat-button:hover {
     color: #ffffff;
-    transform: scale(1.1); /* ▼ Tambahkan ini, efek sedikit membesar ▼ */
+    transform: scale(1.1);
+    /* ▼ Tambahkan ini, efek sedikit membesar ▼ */
 }
 
 .new-chat-button:hover {
@@ -959,7 +961,7 @@ body {
 
     /* Bikin kontainer utama nempel & penuhi layar di mobile */
     .chat-container {
-        height: 100vh;
+        height: calc(var(--vh, 1vh) * 100);
         /* Pakai 100% tinggi layar */
         width: 100vw;
         /* Pakai 100% lebar layar */

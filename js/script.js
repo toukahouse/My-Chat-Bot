@@ -67,7 +67,13 @@ let isReplying = false;
 let lastSummaryCount = 0; // <-- TAMBAHKAN VARIABEL INI. Artinya: "Apakah AI sedang membalas?"
 // --- 2. Kumpulan Fungsi Utama ---
 // (Setelah blok setup Dexie)
-
+function setTrueVh() {
+    // Dapatkan tinggi 'aman' dari window.innerHeight
+    // Ini adalah tinggi viewport yang sebenarnya, tidak termasuk UI browser
+    const trueVh = window.innerHeight * 0.01;
+    // Buat custom property CSS bernama --vh di elemen root (<html>)
+    document.documentElement.style.setProperty('--vh', `${trueVh}px`);
+}
 // ▼▼▼ BUAT FUNGSI BARU INI ▼▼▼
 // ▼▼▼ GANTI DENGAN VERSI YANG LEBIH BAIK INI ▼▼▼
 // GANTI SELURUH FUNGSI LAMA DENGAN INI:
@@ -866,7 +872,8 @@ async function sendMessage() {
 
 // HANYA ADA SATU BLOK INI DI SELURUH FILE
 document.addEventListener('DOMContentLoaded', () => {
-    // Guard clause, jika bukan halaman chat, jangan jalankan apa-apa
+    setTrueVh(); // Panggil sekali saat halaman dimuat
+    window.addEventListener('resize', setTrueVh); // 
     if (!document.querySelector('.chat-container')) return;
 
     // --- SETUP AWAL HALAMAN CHAT ---
