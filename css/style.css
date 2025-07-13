@@ -1,0 +1,890 @@
+/* --- Import Font dari Google --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+/* --- Reset & Gaya Dasar --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #36393f;
+    /* Warna latar belakang gelap seperti Discord */
+    color: #dcddde;
+    /* Warna teks abu-abu terang */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    /* Tinggi penuh layar */
+}
+
+/* --- Wadah Utama Chat --- */
+.chat-container {
+    width: 100%;
+    max-width: 800px;
+    /* Lebar maksimal kontainer chat */
+    height: 95vh;
+    /* Tinggi 95% dari layar, biar ada sedikit space */
+    max-height: 900px;
+    /* Tinggi maksimal */
+    background-color: #2f3136;
+    /* Warna latar sedikit lebih terang */
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    /* Menyusun header, messages, input secara vertikal */
+    overflow: hidden;
+    /* Biar sudutnya tetap rounded */
+}
+
+/* --- Header --- */
+.chat-header {
+    padding: 15px 20px;
+    background-color: #202225;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #2b2d31;
+}
+
+.chat-header h2 {
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.back-button,
+/* style.css */
+.menu-button {
+    background: none;
+    border: none;
+    color: #b9bbbe;
+    font-size: 1.5rem;
+    cursor: pointer;
+    position: relative;
+    /* Diperlukan agar z-index bekerja */
+    z-index: 5;
+    /* Pastikan dia di atas elemen lain di header */
+}
+
+.new-chat-button {
+    background: none;
+    border: none;
+    color: #b9bbbe;
+    font-size: 1.8rem;
+    /* Sedikit lebih besar */
+    cursor: pointer;
+    padding: 0 10px;
+}
+
+.new-chat-button:hover {
+    color: #ffffff;
+}
+
+/* --- Area Pesan --- */
+.chat-messages {
+    flex-grow: 1;
+    /* Mengambil sisa ruang yang tersedia */
+    padding: 20px;
+    overflow-y: auto;
+    /* Aktifkan scroll jika pesan banyak */
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    /* Jarak antar gelembung pesan */
+}
+
+/* --- Gaya Gelembung Pesan --- */
+.message {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    /* Jarak antara avatar dan konten pesan */
+    max-width: 85%;
+    /* Lebar maksimal gelembung pesan */
+}
+
+.avatar {
+    width: 65px;
+    /* Kita perbesar jadi 48px */
+    height: 65px;
+    /* Kita perbesar jadi 48px */
+
+    border-radius: 50%;
+    object-fit: cover;
+    /* Tambahkan ini biar lebih interaktif */
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.avatar:hover {
+    transform: scale(1.1);
+}
+
+.message-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.message-sender {
+    font-weight: 500;
+    margin-bottom: 5px;
+    color: #ffffff;
+}
+
+/* --- Ubah jadi seperti ini --- */
+/* --- Ubah lagi jadi seperti ini --- */
+.message-text {
+    background-color: #3b3e44;
+    padding: 10px 15px;
+    border-radius: 12px;
+    line-height: 1.5;
+    overflow-wrap: break-word;
+    /* <-- KITA HANYA BUTUH INI */
+}
+
+.message-text p {
+    margin: 0;
+    color: #e3e4e5;
+    /* Warna teks dialog normal (putih) */
+}
+
+/* Ini untuk style *aksi* atau *tindakan* */
+.message-text i {
+    color: #a3a6aa;
+    /* Warna teks tindakan (lebih gelap/abu-abu) */
+    font-style: italic;
+}
+
+
+/* --- Posisi Pesan AI (Kiri) & User (Kanan) --- */
+.ai-message {
+    align-self: flex-start;
+    /* Pesan AI di kiri */
+}
+
+.user-message {
+    align-self: flex-end;
+    /* Pesan User di kanan */
+    flex-direction: row-reverse;
+    /* Balik urutan avatar dan konten */
+}
+
+.user-message .message-content {
+    align-items: flex-start;
+    /* Teks nama jadi rata kanan */
+}
+
+.user-message .message-text {
+    background-color: #5865f2;
+    /* Warna khas Discord buat user */
+    color: #ffffff;
+}
+
+/* --- Area Input --- */
+.chat-input-area {
+    padding: 15px 20px;
+    border-top: 1px solid #2b2d31;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.chat-input-area textarea {
+    flex-grow: 1;
+    background-color: #40444b;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    color: #dcddde;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    resize: none;
+    /* Matikan fitur resize textarea */
+    height: 42px;
+    /* Tinggi awal */
+    line-height: 1.5;
+}
+
+.chat-input-area textarea:focus {
+    outline: none;
+}
+
+.send-button {
+    background-color: #5865f2;
+    border: none;
+    color: #ffffff;
+    font-size: 1.5rem;
+    font-weight: bold;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    cursor: pointer;
+    flex-shrink: 0;
+    /* Mencegah tombol menyusut */
+}
+
+.action-text {
+    color: #b9bbbe;
+    /* Warna sedikit lebih redup */
+    font-style: italic;
+}
+
+/* ======================================================= */
+/* ===== BAGIAN INDIKATOR MENGETIK (VERSI FINAL) ===== */
+/* ======================================================= */
+
+
+#typing-indicator .typing-dots {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    /* <-- TAMBAHKAN INI */
+}
+
+/* GAYA UNTUK SETIAP TITIK */
+#typing-indicator .typing-dots span {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #a3a6aa;
+    margin: 0 2px;
+    /* Terapkan animasi di sini */
+    animation: bounce 1.4s infinite ease-in-out;
+}
+
+/* ATUR JEDA ANIMASI (INI KUNCINYA) */
+/* Kita panggil dengan lengkap biar 'tegas' */
+#typing-indicator .typing-dots span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+#typing-indicator .typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+#typing-indicator .typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* DEFINISI ANIMASINYA */
+@keyframes bounce {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+    }
+
+    40% {
+        transform: scale(1.0);
+    }
+}
+
+/* ===== EFEK ANIMASI TEKS BARU ===== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.char-fade-in {
+    display: inline-block;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* ===== GAYA UNTUK POPUP PIKIRAN (THOUGHTS) ===== */
+
+/* Lapisan latar belakang gelap di belakang popup */
+.thought-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    /* Pastikan selalu di paling depan */
+}
+
+/* Kotak popup-nya */
+.thought-modal {
+    background-color: #2f3136;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    width: 90%;
+    max-width: 600px;
+    position: relative;
+    border: 1px solid #40444b;
+    max-height: 80vh;
+    /* <-- Batasi tinggi maksimal 80% dari layar */
+    overflow-y: auto;
+    /* <-- Tambahkan scrollbar vertikal jika kontennya panjang */
+}
+
+.thought-modal h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #ffffff;
+    border-bottom: 1px solid #40444b;
+    padding-bottom: 10px;
+}
+
+.thought-modal p {
+    white-space: pre-wrap;
+    /* Jaga format spasi dan baris baru */
+    line-height: 1.6;
+    color: #dcddde;
+}
+
+/* Tombol close (X) */
+.thought-modal .close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: #b9bbbe;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* CSS BAGIAN2 */
+
+/* ===== GAYA UNTUK HALAMAN EDITOR KARAKTER ===== */
+
+.editor-container {
+    width: 100%;
+    max-width: 800px;
+    height: 95vh;
+    max-height: 900px;
+    background-color: #2f3136;
+    border-radius: 8px;
+    padding: 20px 30px;
+    overflow-y: auto;
+}
+
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #40444b;
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+}
+
+.editor-header h1 {
+    color: #ffffff;
+    font-size: 1.5rem;
+}
+
+.back-to-chat-btn {
+    background-color: #5865f2;
+    color: #ffffff;
+    padding: 8px 15px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    color: #b9bbbe;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    background-color: #202225;
+    border: 1px solid #40444b;
+    border-radius: 5px;
+    padding: 12px;
+    color: #dcddde;
+    font-size: 1rem;
+    font-family: 'Inter', sans-serif;
+}
+
+.persona-code-block {
+    background-color: #202225;
+    border: 1px solid #40444b;
+    border-radius: 5px;
+    padding: 15px;
+    color: #b9bbbe;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: monospace;
+}
+
+.update-button {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #ffffff;
+    background-color: #43b581;
+    /* Warna hijau Discord */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* ===== GAYA UNTUK DROPDOWN MENU ===== */
+.header-menu {
+    position: relative;
+    /* Penting untuk positioning dropdown */
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 120%;
+    /* Posisi muncul tepat di bawah tombol */
+    right: 0;
+    background-color: #202225;
+    border-radius: 5px;
+    box-shadow: 0 4px px rgba(0, 0, 0, 0.3);
+    padding: 8px;
+    z-index: 10;
+    /* Pastikan menu di atas elemen lain */
+    width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* Kelas utilitas untuk menyembunyikan/menampilkan */
+.dropdown-menu.hidden {
+    display: none;
+}
+
+.dropdown-menu a {
+    color: #b9bbbe;
+    text-decoration: none;
+    padding: 10px;
+    border-radius: 3px;
+    font-size: 0.9rem;
+}
+
+.dropdown-menu a:hover {
+    background-color: #5865f2;
+    color: #ffffff;
+}
+
+/* ===== GAYA UNTUK DROPDOWN MENU PESAN ===== */
+
+/* Posisi relatif untuk message-content agar bisa jadi patokan */
+.message-content {
+    position: relative;
+}
+
+/* Tombol ikon titik tiga */
+/* Tombol ikon titik tiga (versi upgrade) */
+.message-menu-button {
+    position: absolute;
+    top: 5px;
+    /* Posisinya di dalam bubble, bukan di luar */
+    background: #3b3e44;
+    /* Warna sedikit lebih gelap dari bubble AI */
+    border: none;
+    color: #b9bbbe;
+    border-radius: 6px;
+    /* Bikin agak kotak, bukan lingkaran */
+    width: 28px;
+    height: 28px;
+    font-size: 1.2rem;
+    /* Perbesar sedikit ikonnya */
+    line-height: 0;
+    /* Bantu ikonnya jadi pas di tengah */
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: all 0.2s ease-in-out;
+    /* Transisi lebih halus */
+    transform: scale(0.9);
+    /* Sedikit kecil secara default */
+}
+
+/* Sedikit style tambahan saat di-hover */
+.message-menu-button:hover {
+    background: #4a4e56;
+    color: #ffffff;
+}
+
+/* Posisikan tombol di kanan untuk pesan AI & user */
+.ai-message .message-menu-button {
+    right: 8px;
+    /* Kasih jarak dari tepi kanan */
+}
+
+.user-message .message-menu-button {
+    /* Untuk pesan user, kita taruh di kiri bubble-nya */
+    /* Karena flex-direction: row-reverse, 'right' akan jadi 'left' */
+    right: 8px;
+}
+
+/* Tampilkan tombol saat mouse hover di atas pesan */
+.message:hover .message-menu-button {
+    opacity: 1;
+    transform: scale(1);
+    /* Kembali ke ukuran normal saat muncul */
+}
+
+/* Sesuaikan posisi dropdown menu-nya */
+.message-dropdown-menu {
+    top: 40px;
+    /* Sedikit lebih ke bawah */
+}
+
+/* Posisikan tombol di kanan untuk pesan AI, dan kiri untuk pesan User */
+.ai-message .message-menu-button {
+    right: -12px;
+    /* Setengah dari lebar tombol */
+}
+
+.user-message .message-menu-button {
+    left: -12px;
+    /* Setengah dari lebar tombol */
+}
+
+/* Tampilkan tombol saat mouse hover di atas pesan */
+.message:hover .message-menu-button {
+    opacity: 1;
+}
+
+/* Dropdown menu-nya */
+.message-dropdown-menu {
+    position: absolute;
+    top: 25px;
+    /* Posisi di bawah tombol ikon */
+    background-color: #202225;
+    border-radius: 5px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    padding: 8px;
+    z-index: 20;
+    /* Lebih tinggi dari menu header */
+    width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* Posisikan dropdown di kanan untuk pesan AI, dan kiri untuk pesan User */
+.ai-message .message-dropdown-menu {
+    right: 0;
+}
+
+.user-message .message-dropdown-menu {
+    left: 0;
+}
+
+
+/* Kelas utilitas untuk menyembunyikan/menampilkan */
+.message-dropdown-menu.hidden {
+    display: none;
+}
+
+.message-dropdown-menu button {
+    background: none;
+    border: none;
+    color: #b9bbbe;
+    text-decoration: none;
+    padding: 10px;
+    border-radius: 3px;
+    font-size: 0.9rem;
+    text-align: left;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+}
+
+.message-dropdown-menu button:hover {
+    background-color: #5865f2;
+    color: #ffffff;
+}
+
+/* Warna khusus untuk tombol hapus */
+.message-dropdown-menu button.delete {
+    color: #f04747;
+    /* Warna merah */
+}
+
+.message-dropdown-menu button.delete:hover {
+    background-color: #f04747;
+    color: #ffffff;
+}
+
+/* ===== GAYA UNTUK MODE EDIT PESAN ===== */
+
+.message-text .edit-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* GANTI BLOK INI */
+/* Di dalam style.css */
+
+.message-text .edit-area textarea {
+    width: 100%;
+    /* <-- TAMBAHKAN BARIS INI */
+    background-color: #40444b;
+    border: 1px solid #5865f2;
+    /* Kasih border biru biar keliatan lagi diedit */
+    border-radius: 5px;
+    padding: 10px;
+    color: #dcddde;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    resize: vertical;
+    /* Boleh di-resize vertikal */
+}
+
+.message.is-editing .message-text {
+    width: 100%;
+    /* Paksa bubble text memenuhi wadah .message */
+    max-width: none;
+    /* Abaikan max-width default */
+}
+
+/* 2. Beri lebar minimum pada area edit */
+.message.is-editing .edit-area {
+    min-width: 600px;
+    /* Atur lebar minimal, sesuaikan angkanya jika perlu */
+}
+
+.message-text .edit-area textarea:focus {
+    outline: none;
+}
+
+.message-text .edit-controls {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.message-text .edit-controls button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.message-text .edit-controls .save-button {
+    background-color: #43b581;
+    /* Hijau */
+    color: white;
+}
+
+.message-text .edit-controls .cancel-button {
+    background-color: transparent;
+    color: #b9bbbe;
+}
+
+.model-active-notification {
+    position: absolute;
+    top: 70px;
+    /* Tepat di bawah header */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(47, 49, 54, 0.9);
+    color: #b9bbbe;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    z-index: 5;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    /* Biar tidak bisa diklik */
+    transition: opacity 0.5s ease-in-out, top 0.5s ease-in-out;
+}
+
+.model-active-notification.show {
+    opacity: 1;
+    top: 80px;
+    /* Efek turun sedikit */
+}
+
+.dropzone {
+    border: 2px dashed #40444b;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    position: relative;
+    /* Penting untuk tombol hapus */
+    min-height: 150px;
+    /* Tinggi minimal */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #202225;
+}
+
+.dropzone:hover {
+    background-color: #2b2d31;
+    border-color: #7289da;
+}
+
+/* Style saat file di-drag ke atasnya */
+.dropzone.dragover {
+    background-color: #2f3136;
+    border-color: #43b581;
+    /* Hijau */
+}
+
+.dropzone .upload-icon {
+    font-size: 3rem;
+    color: #7289da;
+}
+
+.dropzone p {
+    margin: 10px 0 5px 0;
+    color: #dcddde;
+    font-weight: 500;
+}
+
+.dropzone small {
+    color: #a3a6aa;
+}
+
+.dz-message-preview {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.dz-message-preview img {
+    max-width: 100%;
+    max-height: 250px;
+    /* Batasi tinggi preview biar ga kegedean */
+    object-fit: contain;
+    border-radius: 5px;
+}
+
+.dz-message-preview .remove-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 0;
+}
+
+/* Kelas utilitas untuk toggle tampilan */
+.hidden-uploader-content {
+    display: none !important;
+}
+
+/* ===== GAYA UNTUK POPUP AVATAR DRAGGABLE (BARU) ===== */
+
+.avatar-popup-draggable {
+    position: fixed;
+    /* Tetap fixed */
+    z-index: 2000;
+    /* PENTING: Posisi awal sekarang diatur oleh transform di JS */
+    top: 0;
+    left: 0;
+    /* Hapus transform awal, karena akan di-handle JS */
+    background-color: #202225;
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    padding: 8px;
+    cursor: grab;
+    /* Kunci Performa: Beri tahu browser bahwa transform akan sering berubah */
+    will-change: transform;
+}
+
+/* Saat popup sedang digeser */
+.avatar-popup-draggable.is-dragging {
+    cursor: grabbing;
+}
+
+.avatar-popup-draggable img {
+    display: block;
+    /* Mencegah space aneh di bawah gambar */
+    max-width: 300px;
+    /* Ukuran gambar tidak terlalu besar */
+    max-height: 300px;
+    object-fit: contain;
+    border-radius: 6px;
+    /* Sudut gambar sedikit melengkung */
+    user-select: none;
+    /* Biar gambar tidak ter-highlight biru saat drag */
+    -webkit-user-drag: none;
+    /* Mencegah ghost image saat drag di beberapa browser */
+}
+
+.avatar-popup-draggable .popup-close-btn {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: #36393f;
+    border: 2px solid #202225;
+    color: #dcddde;
+    font-size: 1.5rem;
+    line-height: 0;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.avatar-popup-draggable .popup-close-btn:hover {
+    transform: scale(1.1);
+    background-color: #f04747;
+    /* Merah saat di-hover */
+}
+
+/* Saat animasi 'jatuh' / 'goyang' dijalankan */
+/* ===== GAYA BARU: Animasi "Settle" & Perbaikan Bug ===== */
+
+/* ===== GAYA FINAL: Animasi "Getaran Karet" ===== */
+
+/* Saat popup sedang digeser, matikan animasi apapun */
+.avatar-popup-draggable.is-dragging {
+    animation: none;
+}
+
+/* Saat dilepas, jalankan animasi getaran ini */
+/* Ubah nama animasi di sini */
+
+/* Definisi animasi goyangnya *

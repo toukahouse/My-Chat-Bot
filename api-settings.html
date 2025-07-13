@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengaturan API & Model</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<style>
+    /* Tambahkan sedikit CSS untuk notifikasi kita */
+    .save-notification {
+        background-color: #43b543;
+        /* Warna hijau Discord */
+        color: white;
+        padding: 12px;
+        border-radius: 5px;
+        text-align: center;
+        margin-top: 15px;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out;
+        font-weight: 500;
+    }
+
+    .save-notification.show {
+        opacity: 1;
+    }
+</style>
+
+<body>
+    <div class="editor-container">
+        <header class="editor-header">
+            <h1>Pengaturan API & Model</h1>
+            <a href="index.html" class="back-to-chat-btn">Kembali ke Chat</a>
+        </header>
+
+        <main class="editor-main">
+            <div class="form-group">
+                <label for="api-key">Kunci API Gemini</label>
+                <input type="password" id="api-key" placeholder="Masukkan API Key baru jika ingin mengganti">
+                <small style="color: #a3a6aa; margin-top: 5px; display: block;">
+                    Kosongkan jika tidak ingin mengubah. Kunci API yang tersimpan di server akan tetap digunakan.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="model-select">Pilih Model AI</label>
+                <select id="model-select" class="form-group"
+                    style="padding: 12px; font-size: 1rem; color: white; background-color: #202225; border: none;">
+                    <option value="models/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                </select>
+                <small style="color: #a3a6aa; margin-top: 5px; display: block;">
+                    Model Pro lebih pintar tapi mungkin lebih lambat dan responya lebih bagus. Flash lebih cepat untuk
+                    roleplay.
+                </small>
+            </div>
+
+            <button class="update-button" style="background-color: #5865f2;">Simpan Pengaturan</button>
+            <div id="save-notification" class="save-notification">Pengaturan berhasil disimpan!</div>
+        </main>
+    </div>
+
+    <!-- Script yang akan kita buat selanjutnya -->
+    <script src="js/api-settings.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,5 @@
+# Folder Virtual Environment
+venv/
+
+# File Rahasia
+.env

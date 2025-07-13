@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Karakter Sampingan (NPC)</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Pinjam style yang sama dari memory/world editor -->
+    <style>
+        .npc-entry {
+            display: flex;
+            align-items: flex-start;
+            /* Ubah ke flex-start biar tombol sejajar dengan atas textarea */
+            gap: 10px;
+            margin-bottom: 15px;
+            /* Beri jarak lebih antar NPC */
+            background-color: #202225;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #7289da;
+            /* Tambah aksen warna biar beda */
+        }
+
+        .npc-entry textarea {
+            flex-grow: 1;
+            margin: 0 !important;
+            height: auto;
+            min-height: 80px;
+            /* Buat tinggi minimal biar lebih lega */
+            background-color: #3d3d3d;
+            /* Warna beda biar kontras */
+            border: 1px solid #40444b;
+            padding: 10px;
+            color: white;
+            border: none;
+        }
+
+        .delete-npc-btn {
+            background-color: #f04747;
+            border: none;
+            color: white;
+            border-radius: 5px;
+            /* Ubah jadi kotak biar beda */
+            width: 35px;
+            height: 35px;
+            font-weight: bold;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        #add-npc-btn {
+            display: block;
+            margin: 0 auto 20px auto;
+            background-color: #5865f2;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: none;
+            color: white;
+            font-weight: 500;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="editor-container">
+        <header class="editor-header">
+            <h1>Edit Karakter Sampingan (NPC)</h1>
+            <a href="index.html" class="back-to-chat-btn">Kembali ke Chat</a>
+        </header>
+
+        <main class="editor-main">
+            <!-- Tempat untuk daftar NPC -->
+            <div id="npc-list">
+                <!-- Entri NPC akan muncul di sini via JavaScript -->
+            </div>
+
+            <!-- Tombol untuk menambah entri baru -->
+            <button id="add-npc-btn">Tambah NPC Baru</button>
+
+            <!-- Tombol utama untuk menyimpan semua perubahan -->
+            <button class="update-button">Update Info NPC</button>
+        </main>
+    </div>
+
+    <!-- Script yang akan kita buat selanjutnya -->
+    <script src="js/npc-editor.js"></script>
+</body>
+
+</html>

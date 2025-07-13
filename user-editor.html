@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Persona User</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <div class="editor-container">
+        <header class="editor-header">
+            <h1>Edit Persona User</h1>
+            <a href="index.html" class="back-to-chat-btn">Kembali ke Chat</a>
+        </header>
+
+        <main class="editor-main">
+            <div class="form-group">
+                <label>Image</label>
+                <!-- Area dropzone kustom untuk user -->
+                <div id="avatar-dropzone" class="dropzone">
+                    <!-- Pesan saat kosong -->
+                    <div class="dz-message-empty">
+                        <div class="upload-icon">↑</div>
+                        <p>Drag & drop an image here, or click to select</p>
+                        <small>Supports: PNG, JPG, GIF</small>
+                    </div>
+                    <!-- Preview saat ada gambar -->
+                    <div class="dz-message-preview">
+                        <img id="user-avatar-preview" src="#" alt="Preview Avatar">
+                        <button type="button" id="remove-avatar-btn" class="remove-btn">×</button>
+                    </div>
+                </div>
+                <!-- Input file dan hidden yang sesungguhnya -->
+                <input type="file" id="user-avatar-upload" accept="image/png, image/jpeg, image/gif"
+                    style="display: none;">
+                <input type="hidden" id="user-avatar">
+            </div>
+            <div class="form-group">
+                <label for="user-name">Nama Display Kamu</label>
+                <input type="text" id="user-name">
+            </div>
+            <div class="form-group">
+                <label for="user-persona">Deskripsi Persona Kamu (Paragraf)</label>
+                <textarea id="user-persona" rows="10"></textarea>
+            </div>
+
+            <button class="update-button">Update Persona</button>
+        </main>
+    </div>
+
+    <script src="js/user-editor.js"></script>
+</body>
+
+</html>
