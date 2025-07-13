@@ -641,7 +641,7 @@ async function getAiResponse(userMessage) {
                 console.log("%cMengambil ringkasan dari DB untuk dikirim ke AI:", "color: #87CEEB;", currentSummary);
             }
         }
-        const response = await fetch('https://toukakazou.pythonanywhere.com/chat', {
+        const response = await fetch('http://127.0.0.1:5000/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -773,11 +773,15 @@ async function handleSummarization() {
 
             // Ambil hanya pesan-pesan baru sejak ringkasan terakhir
             const historyToSummarize = chatHistory.slice(-SUMMARY_INTERVAL);
-
-            const response = await fetch('https://toukakazou.pythonanywhere.com/summarize', {
+            const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
+            const response = await fetch('http://localhost:5000/summarize', { // Pastikan URL sudah benar
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ history: historyToSummarize }),
+                body: JSON.stringify({
+                    history: historyToSummarize,
+                    api_key: apiSettings.apiKey || null, // <-- TAMBAHKAN INI
+                    model: apiSettings.model || 'models/gemini-2.5-flash-latest' // <-- TAMBAHKAN INI
+                }),
             });
 
             if (!response.ok) {

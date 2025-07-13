@@ -73,17 +73,17 @@ def stream_generator(
         memory_block = ""
         if memory_entries:
             formatted_memories = "\n".join([f"- {entry}" for entry in memory_entries])
-            memory_block = f"Ini berisi alur cerita atau moment penting...\n<memori_penting>\n{formatted_memories}\n</memori_penting>\n\n"
+            memory_block = f"Ini berisi alur cerita saat ini, moment sebelumnya atau moment penting...\n<memori_penting>\n{formatted_memories}\n</memori_penting>\n\n"
         world_info_block = ""
         if world_info_entries:
             formatted_world_infos = "\n".join(
                 [f"- {entry}" for entry in world_info_entries]
             )
-            world_info_block = f"Berikut adalah informasi, lore, dan konteks tentang dunia...\n<info_dunia>\n{formatted_world_infos}\n</info_dunia>\n\n"
+            world_info_block = f"Berikut adalah informasi, lore, dan konteks tentang dunia roleplay saat ini...\n<info_dunia>\n{formatted_world_infos}\n</info_dunia>\n\n"
         npc_block = ""
         if npc_entries:
             formatted_npcs = "\n\n---\n\n".join(npc_entries)
-            npc_block = f"Berikut adalah deskripsi karakter sampingan (NPC)...\n<karakter_sampingan>\n{formatted_npcs}\n</karakter_sampingan>\n\n"
+            npc_block = f"Berikut adalah deskripsi karakter sampingan (NPC) yang akan muncul saat roleplay...\n<karakter_sampingan>\n{formatted_npcs}\n</karakter_sampingan>\n\n"
         history_block = ""
         if summary and len(history) > 10:
             recent_history = history[-8:]
@@ -100,18 +100,19 @@ def stream_generator(
 
         # --- 4. Gabungkan semua blok menjadi satu prompt utuh ---
         full_prompt = (
-            f"Kamu adalah sebuah karakter AI...\n"
+            f"Kamu adalah sebuah karakter AI dengan peran dan instruksi sebagai berikut\n"
             f"{persona_text_block}"
             f"{user_persona_block}"
             f"{memory_block}"
             f"{world_info_block}"
             f"{npc_block}"
-            f"Ikuti instruksi sistem ini...\n<instruksi_sistem>\n{system_instruction}\n</instruksi_sistem>\n\n"
-            f"Gunakan contoh dialog ini...\n<contoh_dialog>\n{example_dialogs}\n</contoh_dialog>\n\n"
+            f"Ikuti instruksi sistem ini, ikuti setiap instruksi dan aturan yang ditulis dan ini bersifat mutlak dan wajib untuk dipatuhi :\n<instruksi_sistem>\n{system_instruction}\n</instruksi_sistem>\n\n"
+            f"Gunakan contoh dialog ini sebagai referensi gaya bicara kamu yang informal.. \n<contoh_dialog>\n{example_dialogs}\n</contoh_dialog>\n\n"
             f"---\n\n"
             f"{history_block}\n\n"
-            f"INGAT: Selalu gunakan gaya bahasa yang santai...\n"
-            f'model: {user_name} bilang: "{user_message}". Sekarang giliranmu merespon...\n'
+            f"INGAT: Selalu gunakan gaya bahasa yang santai dan informal sesuai <instruksi_sistem> di atas. "
+            f"Jangan pernah gunakan kata 'akan' atau 'tentu saja'.\n"
+            f'model: {user_name} bilang: "{user_message}". Sekarang giliranmu merespon sebagai {character_info.get("name", "karakter")}:\n'
             f"model:"
         )
         print(f"Mengirim prompt ke Gemini...")
@@ -174,6 +175,8 @@ def stream_generator(
 def summarize():
     data = request.json
     history_to_summarize = data.get("history", [])
+    custom_api_key = data.get("api_key", None)  # <-- TAMBAH INI
+    selected_model = data.get("model", "models/gemini-2.5-flash")
     if not history_to_summarize:
         return Response(
             json.dumps({"error": "History kosong"}),
@@ -190,12 +193,12 @@ def summarize():
             f"Fokus pada kejadian dan dialog kunci.\n\n"
             f"RIWAYAT PERCAKAPAN:\n{history_text}"
         )
-        api_key_to_use = os.getenv(
-            "GEMINI_API_KEY"
-        )  # Summarize selalu pakai key dari .env
+        api_key_to_use = custom_api_key or os.getenv("GEMINI_API_KEY")
+        if not api_key_to_use:
+            raise ValueError("Tidak ada API Key yang tersedia untuk meringkas.")
         client = genai.Client(api_key=api_key_to_use)
         response = client.models.generate_content(
-            model="models/gemini-2.5-flash", contents=summarization_prompt
+            model=selected_model, contents=summarization_prompt
         )
         summary_text = response.text.strip()
         print(f"Ringkasan diterima: {summary_text}")
