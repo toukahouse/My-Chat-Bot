@@ -519,30 +519,73 @@ function createAvatarPopup(imageUrl) {
     targetY = currentY;
 
     // --- Event Listeners ---
-    popup.addEventListener('mousedown', (e) => {
+    // Variabel untuk melacak posisi sentuhan terakhir
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
+    function onDragStart(e) {
         if (e.target === closeBtn) return;
         isDragging = true;
         popup.classList.add('is-dragging');
-    });
 
-    window.addEventListener('mousemove', (e) => {
+        // Jika ini event sentuhan, simpan posisi awal sentuhan
+        if (e.type === 'touchstart') {
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+        }
+    }
+
+    function onDragMove(e) {
         if (!isDragging) return;
-        targetX += e.movementX;
-        targetY += e.movementY;
-    });
+        // Mencegah layar scroll pas kita lagi geser avatar di HP
+        e.preventDefault();
 
-    window.addEventListener('mouseup', () => {
+        let movementX, movementY;
+
+        if (e.type === 'mousemove') {
+            // Logika untuk Mouse
+            movementX = e.movementX;
+            movementY = e.movementY;
+        } else { // Logika untuk Touch
+            const touch = e.touches[0];
+            movementX = touch.clientX - lastTouchX;
+            movementY = touch.clientY - lastTouchY;
+            // Update posisi sentuhan terakhir
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+        }
+
+        targetX += movementX;
+        targetY += movementY;
+    }
+
+    function onDragEnd() {
         if (!isDragging) return;
         isDragging = false;
         popup.classList.remove('is-dragging');
-
-        // "Sentil" pegasnya saat dilepas untuk memberi sedikit getaran
         scaleVelocity += 0.05;
-    });
+    }
+
+    // Daftarkan event untuk Mouse
+    popup.addEventListener('mousedown', onDragStart);
+    window.addEventListener('mousemove', onDragMove);
+    window.addEventListener('mouseup', onDragEnd);
+
+    // Daftarkan event untuk Sentuhan (Touch)
+    popup.addEventListener('touchstart', onDragStart, { passive: false });
+    window.addEventListener('touchmove', onDragMove, { passive: false });
+    window.addEventListener('touchend', onDragEnd);
+    window.addEventListener('touchcancel', onDragEnd); // Jaga-jaga jika sentuhan dibatalkan sistem
 
     const closePopup = () => {
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         if (popup.parentNode) popup.parentNode.removeChild(popup);
+        // Hapus semua event listener dari window saat popup ditutup biar hemat memori
+        window.removeEventListener('mousemove', onDragMove);
+        window.removeEventListener('mouseup', onDragEnd);
+        window.removeEventListener('touchmove', onDragMove);
+        window.removeEventListener('touchend', onDragEnd);
+        window.removeEventListener('touchcancel', onDragEnd);
     };
     closeBtn.addEventListener('click', closePopup);
 
