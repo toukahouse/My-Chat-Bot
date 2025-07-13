@@ -641,7 +641,9 @@ async function getAiResponse(userMessage) {
                 console.log("%cMengambil ringkasan dari DB untuk dikirim ke AI:", "color: #87CEEB;", currentSummary);
             }
         }
-        const response = await fetch('https://toukakazou.pythonanywhere.com/chat', {
+        // https://toukakazou.pythonanywhere.com/chat
+        // http://127.0.0.1:5000/chat
+        const response = await fetch('http://127.0.0.1:5000/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -774,7 +776,9 @@ async function handleSummarization() {
             // Ambil hanya pesan-pesan baru sejak ringkasan terakhir
             const historyToSummarize = chatHistory.slice(-SUMMARY_INTERVAL);
             const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
-            const response = await fetch('https://toukakazou.pythonanywhere.com/summarize', { // Pastikan URL sudah benar
+            // http://127.0.0.1:5000/summarize
+            // https://toukakazou.pythonanywhere.com/summarize
+            const response = await fetch('http://127.0.0.1:5000/summarize', { // Pastikan URL sudah benar
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -897,7 +901,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- EVENT LISTENERS (HANYA SATU KALI INISIALISASI) ---
+    const inputField = document.querySelector('.chat-input-area textarea');
+    if (inputField) {
+        // Simpan tinggi awal
+        const initialHeight = inputField.style.height;
 
+        inputField.addEventListener('input', () => {
+            // Reset dulu tingginya biar bisa ngukur ulang dengan benar
+            inputField.style.height = initialHeight;
+            // Ambil tinggi scroll (tinggi konten sebenarnya)
+            const scrollHeight = inputField.scrollHeight;
+            // Set tinggi baru sesuai tinggi konten
+            inputField.style.height = `${scrollHeight}px`;
+        });
+    }
     // Listener untuk tombol send dan input area
     sendButton.addEventListener('click', sendMessage);
     inputArea.addEventListener('keydown', (event) => {

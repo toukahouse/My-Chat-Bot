@@ -68,6 +68,7 @@ body {
     /* Diperlukan agar z-index bekerja */
     z-index: 5;
     /* Pastikan dia di atas elemen lain di header */
+    transition: color 0.2s ease, transform 0.2s ease;
 }
 
 .new-chat-button {
@@ -78,6 +79,12 @@ body {
     /* Sedikit lebih besar */
     cursor: pointer;
     padding: 0 10px;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.menu-button:hover, .new-chat-button:hover {
+    color: #ffffff;
+    transform: scale(1.1); /* ▼ Tambahkan ini, efek sedikit membesar ▼ */
 }
 
 .new-chat-button:hover {
@@ -101,10 +108,13 @@ body {
 .message {
     display: flex;
     align-items: flex-start;
-    gap: 15px;
-    /* Jarak antara avatar dan konten pesan */
+    gap: 10px;
     max-width: 85%;
-    /* Lebar maksimal gelembung pesan */
+    width: fit-content;
+    min-width: 0;
+
+    /* ▼▼▼ TAMBAHKAN BARIS INI ▼▼▼ */
+    animation: slideUpFadeIn 0.4s ease-out;
 }
 
 .avatar {
@@ -186,31 +196,42 @@ body {
 
 /* --- Area Input --- */
 .chat-input-area {
-    padding: 15px 20px;
+    padding: 10px 15px;
     border-top: 1px solid #2b2d31;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
+    /* PENTING: biar tombol sejajar bawah saat textarea tumbuh */
     gap: 10px;
+    background-color: #2f3136;
+    /* Warna dasar area input */
 }
 
 .chat-input-area textarea {
     flex-grow: 1;
     background-color: #40444b;
-    border: none;
-    border-radius: 8px;
-    padding: 10px;
+    /* Warna field input */
+    border: 1px solid #40444b;
+    border-radius: 20px;
+    /* Bikin jadi kapsul */
+    padding: 10px 15px;
     color: #dcddde;
     font-family: 'Inter', sans-serif;
     font-size: 1rem;
     resize: none;
-    /* Matikan fitur resize textarea */
-    height: 42px;
-    /* Tinggi awal */
-    line-height: 1.5;
+    max-height: 150px;
+    /* Batas maksimal tinggi textarea biar ga kebablasan */
+    overflow-y: auto;
+    /* Munculkan scroll kalau sudah max-height */
+    line-height: 1.4;
+    transition: all 0.2s ease;
+    /* Transisi halus saat ganti tinggi */
 }
 
 .chat-input-area textarea:focus {
     outline: none;
+    border-color: #5865f2;
+    /* Kasih highlight pas aktif */
+    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.3);
 }
 
 .send-button {
@@ -220,11 +241,19 @@ body {
     font-size: 1.5rem;
     font-weight: bold;
     border-radius: 50%;
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
     cursor: pointer;
     flex-shrink: 0;
-    /* Mencegah tombol menyusut */
+    display: flex;
+    /* Bikin ikon pas di tengah */
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+}
+
+.send-button:hover {
+    background-color: #4752c4;
 }
 
 .action-text {
@@ -452,29 +481,38 @@ body {
 /* ===== GAYA UNTUK DROPDOWN MENU ===== */
 .header-menu {
     position: relative;
-    /* Penting untuk positioning dropdown */
 }
 
 .dropdown-menu {
     position: absolute;
     top: 120%;
-    /* Posisi muncul tepat di bawah tombol */
     right: 0;
     background-color: #202225;
     border-radius: 5px;
-    box-shadow: 0 4px px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     padding: 8px;
     z-index: 10;
-    /* Pastikan menu di atas elemen lain */
     width: 180px;
     display: flex;
     flex-direction: column;
     gap: 5px;
+
+    /* ▼▼▼ TAMBAHKAN KODE INI ▼▼▼ */
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: auto;
+    /* Bisa diklik */
 }
 
 /* Kelas utilitas untuk menyembunyikan/menampilkan */
 .dropdown-menu.hidden {
-    display: none;
+    /* ▼▼▼ UBAH SEPERTI INI ▼▼▼ */
+    opacity: 0;
+    transform: translateY(-10px);
+    /* Efek geser ke atas sedikit pas hilang */
+    pointer-events: none;
+    /* Tidak bisa diklik saat transparan */
 }
 
 .dropdown-menu a {
@@ -553,8 +591,25 @@ body {
 
 /* Sesuaikan posisi dropdown menu-nya */
 .message-dropdown-menu {
-    top: 40px;
-    /* Sedikit lebih ke bawah */
+    position: absolute;
+    top: 25px;
+    background-color: #202225;
+    border-radius: 5px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    padding: 8px;
+    z-index: 20;
+    width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+
+    /* ▼▼▼ TAMBAHKAN KODE INI ▼▼▼ */
+    opacity: 1;
+    transform: scale(1);
+    transform-origin: top right;
+    /* Titik mulai animasi dari pojok kanan atas */
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: auto;
 }
 
 /* Posisikan tombol di kanan untuk pesan AI, dan kiri untuk pesan User */
@@ -563,9 +618,8 @@ body {
     /* Setengah dari lebar tombol */
 }
 
-.user-message .message-menu-button {
-    left: -12px;
-    /* Setengah dari lebar tombol */
+.user-message .message-dropdown-menu {
+    transform-origin: top left;
 }
 
 /* Tampilkan tombol saat mouse hover di atas pesan */
@@ -602,7 +656,11 @@ body {
 
 /* Kelas utilitas untuk menyembunyikan/menampilkan */
 .message-dropdown-menu.hidden {
-    display: none;
+    /* ▼▼▼ UBAH SEPERTI INI ▼▼▼ */
+    opacity: 0;
+    transform: scale(0.95);
+    /* Efek 'zoom-out' sedikit pas hilang */
+    pointer-events: none;
 }
 
 .message-dropdown-menu button {
@@ -884,7 +942,71 @@ body {
     animation: none;
 }
 
-/* Saat dilepas, jalankan animasi getaran ini */
-/* Ubah nama animasi di sini */
+@media (max-width: 600px) {
 
-/* Definisi animasi goyangnya *
+    /* --- KODE LAMA DARI SEBELUMNYA BIARKAN SAJA --- */
+    .chat-messages {
+        padding: 10px;
+        gap: 15px;
+    }
+
+    .avatar {
+        width: 48px;
+        height: 48px;
+    }
+
+    /* ▼▼▼ TAMBAHKAN KODE BARU DI BAWAH INI ▼▼▼ */
+
+    /* Bikin kontainer utama nempel & penuhi layar di mobile */
+    .chat-container {
+        height: 100vh;
+        /* Pakai 100% tinggi layar */
+        width: 100vw;
+        /* Pakai 100% lebar layar */
+        border-radius: 0;
+        /* Hilangkan sudut melengkung */
+        box-shadow: none;
+        /* Hilangkan bayangan */
+        max-height: none;
+        /* Abaikan tinggi maksimal */
+    }
+
+    body {
+        /* Mencegah ada scroll aneh di body */
+        overflow: hidden;
+
+        .message-text {
+            padding: 8px 12px;
+            /* Kurangi padding di dalam bubble */
+        }
+
+        .message-text p {
+            font-size: 0.80rem;
+            /* KECILKAN FONT UTAMA! (sekitar 15px) */
+            line-height: 1.45;
+            /* Rapatkan sedikit jarak antar baris */
+        }
+
+        /* Kecilkan juga nama pengirim */
+        .message-sender {
+            font-size: 0.85rem;
+            /* (sekitar 13.5px) */
+            margin-bottom: 4px;
+            /* Kurangi jarak ke bubble di bawahnya */
+        }
+    }
+}
+
+/* ===== RESEP ANIMASI UNTUK GELEMBUNG CHAT BARU ===== */
+@keyframes slideUpFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+        /* Mulai dari 15px di bawah posisi asli */
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
