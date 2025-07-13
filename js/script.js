@@ -975,16 +975,18 @@ async function sendMessage() {
     inputArea.focus();
 
     try {
-        // Panggil AI dan TUNGGU sampai selesai (atau di-abort)
+        // 1. Panggil AI dan tunggu sampai selesai
         await getAiResponse(messageText);
+
+        // 2. Setelah AI selesai, jalankan pengecekan ringkasan
+        await handleSummarization();
+
     } catch (error) {
-        // getAiResponse akan menangani error-nya sendiri,
-        // kita cuma perlu log di sini jika mau
         if (error.name !== 'AbortError') {
             console.error("Terjadi error yang tidak ditangani di luar getAiResponse:", error);
         }
     } finally {
-        // BLOK INI SEKARANG AKAN SELALU JALAN, BAIK SUKSES MAUPUN GAGAL/ABORT
+        // 3. Apapun yang terjadi, kembalikan tombol seperti semula
         isReplying = false;
         sendButton.classList.remove('is-stopping');
         sendButton.title = 'Kirim';
