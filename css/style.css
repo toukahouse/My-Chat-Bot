@@ -955,11 +955,32 @@ body {
 
 @media (max-width: 600px) {
 
-    /* --- KODE LAMA DARI SEBELUMNYA BIARKAN SAJA --- */
+    /* ▼▼▼ TAMBAHKAN BLOK BARU INI ▼▼▼ */
+    body {
+        align-items: flex-start;
+        /* KUNCI UTAMA: Jangan taruh di tengah, mulai dari atas! */
+    }
+
+    /* ▲▲▲ SELESAI BLOK BARU ▲▲▲ */
+
+    /* Pastikan .chat-container juga punya aturan tinggi yang benar */
+    .chat-container {
+        height: 100svh;
+        /* Kita balikin lagi pake svh, ini lebih tangguh */
+        width: 100vw;
+        border-radius: 0;
+        box-shadow: none;
+        max-height: none;
+        position: relative;
+        /* Ini masih perlu buat jadi patokan elemen di dalamnya */
+    }
+
     .chat-messages {
         padding: 10px;
         gap: 15px;
+        /* Beri ruang kosong di bawah seukuran input area */
         padding-bottom: 80px;
+        /* Sesuaikan angkanya jika perlu */
     }
 
     .avatar {
@@ -967,46 +988,18 @@ body {
         height: 48px;
     }
 
-    /* ▼▼▼ TAMBAHKAN KODE BARU DI BAWAH INI ▼▼▼ */
-
-    /* Bikin kontainer utama nempel & penuhi layar di mobile */
-    .chat-container {
-        height: 100svh;
-        /* Pakai 100% tinggi layar */
-        width: 100vw;
-        /* Pakai 100% lebar layar */
-        border-radius: 0;
-        /* Hilangkan sudut melengkung */
-        box-shadow: none;
-        /* Hilangkan bayangan */
-        max-height: none;
-        position: relative;
-        /* Abaikan tinggi maksimal */
+    .message-text {
+        padding: 8px 12px;
     }
 
-    body {
-        /* Mencegah ada scroll aneh di body */
-        overflow: hidden;
+    .message-text p {
+        font-size: 0.95rem;
+        line-height: 1.45;
+    }
 
-        .message-text {
-            padding: 8px 12px;
-            /* Kurangi padding di dalam bubble */
-        }
-
-        .message-text p {
-            font-size: 0.80rem;
-            /* KECILKAN FONT UTAMA! (sekitar 15px) */
-            line-height: 1.45;
-            /* Rapatkan sedikit jarak antar baris */
-        }
-
-        /* Kecilkan juga nama pengirim */
-        .message-sender {
-            font-size: 0.85rem;
-            /* (sekitar 13.5px) */
-            margin-bottom: 4px;
-            /* Kurangi jarak ke bubble di bawahnya */
-        }
+    .message-sender {
+        font-size: 0.85rem;
+        margin-bottom: 4px;
     }
 }
 
