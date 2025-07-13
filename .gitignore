@@ -1,5 +1,6 @@
-# Folder Virtual Environment
+# Contoh isi .gitignore
 venv/
-
-# File Rahasia
+__pycache__/
+*.pyc
 .env
+temp_uploads/

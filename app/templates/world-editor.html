@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Memori Jangka Panjang</title>
-    <link rel="stylesheet" href="css/style.css">
-    <!-- Kita tambahkan sedikit style khusus di sini biar rapi -->
+    <title>Edit Info Dunia (Lorebook)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/style.css') }}">
+    <!-- Pinjam style yang sama dari memory-editor -->
     <style>
-        .memory-entry {
+        .world-entry {
             display: flex;
             align-items: flex-start;
             /* Ubah ke flex-start biar tombol sejajar dengan atas textarea */
@@ -22,7 +22,7 @@
             /* Tambah aksen warna biar beda */
         }
 
-        .memory-entry textarea {
+        .world-entry textarea {
             flex-grow: 1;
             margin: 0 !important;
             height: auto;
@@ -36,7 +36,7 @@
             border: none;
         }
 
-        .delete-memory-btn {
+        .delete-world-btn {
             background-color: #f04747;
             border: none;
             color: white;
@@ -48,10 +48,9 @@
             flex-shrink: 0;
         }
 
-        #add-memory-btn {
+        #add-world-btn {
             display: block;
             margin: 0 auto 20px auto;
-            /* Posisikan di tengah */
             background-color: #5865f2;
             padding: 10px 15px;
             border-radius: 5px;
@@ -66,26 +65,26 @@
 <body>
     <div class="editor-container">
         <header class="editor-header">
-            <h1>Edit Memori Jangka Panjang</h1>
+            <h1>Edit Info Dunia (Lorebook)</h1>
             <a href="index.html" class="back-to-chat-btn">Kembali ke Chat</a>
         </header>
 
         <main class="editor-main">
-            <!-- Tempat untuk daftar memori yang sudah ada -->
-            <div id="memory-list">
-                <!-- Contoh entri memori akan muncul di sini pakai JavaScript -->
+            <!-- Tempat untuk daftar info dunia -->
+            <div id="world-list">
+                <!-- Entri info dunia akan muncul di sini -->
             </div>
 
-            <!-- Tombol untuk menambah entri memori baru -->
-            <button id="add-memory-btn">Tambah Memori Baru</button>
+            <!-- Tombol untuk menambah entri baru -->
+            <button id="add-world-btn">Tambah Info Baru</button>
 
             <!-- Tombol utama untuk menyimpan semua perubahan -->
-            <button class="update-button">Update Memori</button>
+            <button class="update-button">Update Info Dunia</button>
         </main>
     </div>
 
     <!-- Script yang akan kita buat selanjutnya -->
-    <script src="js/memory-editor.js"></script>
+    <script src="{{ url_for('static', filename='assets/js/world-editor.js') }}" defer></script>
 </body>
 
 </html>
