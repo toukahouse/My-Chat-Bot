@@ -622,7 +622,7 @@ async function getAiResponse(userMessage) {
         }, 100); // Update setiap 0.1 detik
     }
     const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
-    const selectedModel = apiSettings.model || 'models/gemini-1.5-flash-latest';
+    const selectedModel = apiSettings.model || 'models/gemini-2.5-flash';
     const customApiKey = apiSettings.apiKey || null;
     const savedData = localStorage.getItem('characterData');
     const characterData = savedData ? JSON.parse(savedData) : {};
