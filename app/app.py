@@ -1,9 +1,9 @@
 import os
 import json
-from flask import Flask, request, Response
+from flask import Flask, request, Response, render_template
 from dotenv import load_dotenv
 from flask_cors import CORS
-
+from werkzeug.utils import secure_filename
 
 try:
     from google import genai
@@ -15,7 +15,13 @@ except ModuleNotFoundError:
 # --- SETUP DASAR ---
 load_dotenv()
 app = Flask(__name__)
-CORS(app)
+# GANTI BARIS CORS(app) DENGAN INI
+CORS(app, origins="*", methods=["GET", "POST", "OPTIONS"], headers=["Content-Type"])
+
+UPLOAD_FOLDER = "temp_uploads"
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # --- KONEKSI KE GEMINI ---
 # try:
@@ -31,6 +37,7 @@ CORS(app)
 
 # === FUNGSI STREAM GENERATOR (SEKARANG DI LUAR 'CHAT') ===
 def stream_generator(
+    image_part,
     history,
     user_message,
     character_info,
@@ -122,9 +129,15 @@ def stream_generator(
             temperature=temperature_value,
             thinking_config=types.ThinkingConfig(include_thoughts=True),
         )
+        contents_to_send = []
+        if image_part:
+            contents_to_send.append(image_part)  # Tambahkan gambar jika ada
+        contents_to_send.append(full_prompt)  # Selalu tambahkan teks prompt
+
+        # Panggil AI dengan konten yang sudah digabung
         response_stream = client.models.generate_content_stream(
-            model=selected_model,  # Gunakan model yang dipilih
-            contents=full_prompt,
+            model=selected_model,
+            contents=contents_to_send,  # <-- Gunakan list yang sudah kita buat
             config=config,
         )
 
@@ -168,6 +181,25 @@ def stream_generator(
     except Exception as e:
         print(f"❌ Error saat streaming: {e}")
         yield f"data: {json.dumps({'type': 'error', 'content': 'Error di server.'})}\n\n"
+
+
+# --- Route untuk Menyajikan Halaman Utama ---
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/<page_name>")
+def show_page(page_name):
+    # Cek untuk keamanan, pastikan yang diminta adalah file html
+    if not page_name.endswith(".html"):
+        return "Not Found", 404
+    try:
+        # Coba render template dengan nama yang diminta
+        return render_template(page_name)
+    except:
+        # Jika file tidak ada di folder templates, kirim 404
+        return "Not Found", 404
 
 
 # === ENDPOINT UNTUK SUMMARIZE ===
@@ -217,32 +249,76 @@ def summarize():
 
 
 # === ENDPOINT UTAMA UNTUK CHAT ===
+# === GANTI TOTAL ENDPOINT CHAT DENGAN INI ===
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.json
-    # 1. Ambil semua data dari request
-    history = data.get("history", [])
-    user_message = data.get("message")
-    character_info = data.get("character", {})
-    user_info = data.get("user", {})
-    memory_entries = data.get("memory", [])
-    world_info_entries = data.get("world_info", [])
-    npc_entries = data.get("npcs", [])
-    summary = data.get("summary", "")
-    selected_model = data.get("model", "models/gemini-2.5-flash")  # Ambil model
-    custom_api_key = data.get("api_key", None)
-
-    # 2. Validasi pesan
-    if not user_message:
+    # Validasi request, pastikan ini adalah form data
+    if "message" not in request.form:
         return Response(
-            json.dumps({"error": "Pesan tidak boleh kosong"}),
-            status=400,
-            mimetype="application/json",
+            json.dumps({"error": "Request harus dalam format FormData"}), status=400
         )
 
-    # 3. Panggil stream_generator dengan semua data
+    try:
+        # Ambil semua data dari request.form
+        user_message = request.form.get("message")
+        history = json.loads(request.form.get("history", "[]"))
+        character_info = json.loads(request.form.get("character", "{}"))
+        user_info = json.loads(request.form.get("user", "{}"))
+        memory_entries = json.loads(request.form.get("memory", "[]"))
+        world_info_entries = json.loads(request.form.get("world_info", "[]"))
+        npc_entries = json.loads(request.form.get("npcs", "[]"))
+        summary = request.form.get("summary", "")
+        selected_model = request.form.get("model", "models/gemini-2.5-flash")
+        custom_api_key = request.form.get("api_key", None)
+    except json.JSONDecodeError:
+        return Response(
+            json.dumps({"error": "Format JSON pada salah satu data form tidak valid"}),
+            status=400,
+        )
+
+    image_part = None
+
+    # Proses file gambar jika ada
+    if "image" in request.files and request.files["image"].filename != "":
+        image_file = request.files["image"]
+        temp_file_path = None
+        try:
+            # Kita buat client di sini HANYA untuk upload file
+            api_key_for_upload = custom_api_key or os.getenv("GEMINI_API_KEY")
+            if not api_key_for_upload:
+                raise ValueError("API Key tidak tersedia untuk upload file.")
+
+            # Gunakan client yang sama seperti caramu
+            upload_client = genai.Client(api_key=api_key_for_upload)
+
+            filename = secure_filename(image_file.filename)
+            temp_file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+            image_file.save(temp_file_path)
+
+            print(f"Mengunggah file: {temp_file_path} ke Google...")
+            uploaded_file = upload_client.files.upload(
+                file=temp_file_path
+            )  # Bukan path=, tapi file=
+            image_part = uploaded_file
+            print(f"File berhasil diunggah: {uploaded_file.uri}")
+
+        except Exception as e:
+            print(f"❌ Gagal memproses gambar: {e}")
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+            # Kirim pesan error ke frontend
+            error_data = json.dumps(
+                {"type": "error", "content": f"Gagal upload gambar: {str(e)}"}
+            )
+            return Response(f"data: {error_data}\n\n", mimetype="text/event-stream")
+        finally:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+
+    # Panggil stream_generator dengan semua data
     return Response(
         stream_generator(
+            image_part,  # Bisa None jika tidak ada gambar, atau berisi file jika ada
             history,
             user_message,
             character_info,
@@ -251,11 +327,15 @@ def chat():
             world_info_entries,
             npc_entries,
             summary,
-            selected_model,  # Kirim model
+            selected_model,
             custom_api_key,
         ),
         mimetype="text/event-stream",
     )
+
+
+# --- JALANKAN APLIKASI ---
+# --- JALANKAN APLIKASI DENGAN WAITRESS ---
 
 
 # --- JALANKAN APLIKASI ---

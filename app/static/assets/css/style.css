@@ -202,7 +202,8 @@ body {
     padding: 10px 15px;
     border-top: 1px solid #2b2d31;
     display: flex;
-    align-items: flex-end;
+    flex-direction: column;
+    /* Biar preview bisa di atas */
     gap: 10px;
     background-color: #2f3136;
 }
@@ -214,7 +215,14 @@ body {
     border: 1px solid #40444b;
     border-radius: 20px;
     /* Bikin jadi kapsul */
-    padding: 10px 15px;
+    flex-grow: 1;
+    /* padding-left: 42px;  <-- HAPUS BARIS INI */
+
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-right: 5px;
+    /* Mungkin ini juga perlu disesuaikan jadi 15px lagi */
+    padding-left: 15px;
     color: #dcddde;
     font-family: 'Inter', sans-serif;
     font-size: 1rem;
@@ -228,13 +236,83 @@ body {
     /* Transisi halus saat ganti tinggi */
 }
 
-.chat-input-area textarea:focus {
-    outline: none;
-    border-color: #5865f2;
-    /* Kasih highlight pas aktif */
-    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.3);
+/* ▼▼▼ TAMBAHKAN BLOK BARU INI ▼▼▼ */
+/* Wadah yang menyatukan tombol + dan textarea */
+/* --- GANTI SEMUA BLOK CSS LAMA DENGAN INI --- */
+
+/* Wadah yang menyatukan semua: tombol +, textarea, tombol kirim */
+/* --- AREA INPUT VERSI FINAL (ANTI GAGAL) --- */
+
+.input-wrapper {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    width: 100%;
 }
 
+/* Wadah baru yang membungkus tombol + dan textarea */
+.textarea-container {
+    flex-grow: 1; 
+    display: flex;
+    align-items: center; 
+    background-color: #40444b;
+    border: 1px solid #40444b; /* <-- INI BORDER AWALNYA */
+    border-radius: 20px;
+    padding: 0 8px; 
+    transition: border-color 0.2s ease;
+}
+
+.textarea-container:focus-within {
+    /* Style saat textarea di dalamnya aktif/fokus */
+    border-color: #5865f2;
+}
+
+/* Tombol + (sekarang jadi flex item biasa) */
+.upload-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #b9bbbe;
+    padding: 8px;
+    /* Beri area klik yang cukup */
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.upload-button:hover {
+    color: #ffffff;
+}
+
+.upload-button svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Textarea (dibuat 'transparan' agar menyatu dengan wadahnya) */
+.chat-input-area textarea {
+    flex-grow: 1;
+    background: none;
+    /* Hapus latar belakangnya */
+    border: none;
+    /* Hapus bordernya */
+    padding: 10px 5px;
+    /* Padding vertikal & sedikit jarak dari tombol + */
+    color: #dcddde;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    resize: none;
+    max-height: 150px;
+    overflow-y: auto;
+    line-height: 1.4;
+}
+
+.chat-input-area textarea:focus {
+    outline: none;
+    /* Hapus outline saat fokus, karena sudah dihandle .textarea-container */
+}
+
+/* Tombol Kirim (Send) */
 .send-button {
     background-color: #5865f2;
     border: none;
@@ -247,12 +325,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    /* ▼▼▼ TAMBAHKAN INI ▼▼▼ */
-    transition: background-color 0.3s ease, transform 0.3s ease;
     position: relative;
-    /* Penting untuk tumpukan ikon */
     overflow: hidden;
-    /* Biar ikonnya gak keluar dari lingkaran */
 }
 
 .send-button:hover {
@@ -1067,13 +1141,13 @@ body {
     }
 
     .chat-input-area {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        width: 100%;
-        /* Pastikan lebarnya 100% */
-        z-index: 100;
+        padding: 10px 15px;
+        border-top: 1px solid #2b2d31;
+        display: flex;
+        flex-direction: column;
+        /* <-- UBAH INI jadi column */
+        gap: 10px;
+        background-color: #2f3136;
     }
 }
 
@@ -1122,4 +1196,72 @@ body {
 .message-text>* {
     /* Target semua elemen di dalam bubble, misal <p> */
     animation: subtleFadeUp 0.5s ease-out forwards;
+}
+
+#image-preview-container {
+    position: relative;
+    background-color: #202225;
+    border-radius: 8px;
+    padding: 8px;
+    width: fit-content;
+    max-width: 200px;
+    align-self: flex-start;
+    /* Posisikan di kiri */
+    animation: subtleFadeUp 0.3s ease-out;
+    /* Animasi muncul */
+}
+
+#image-preview-container.hidden {
+    display: none;
+}
+
+/* Gambar Preview-nya */
+#image-preview {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+}
+
+/* Tombol Hapus (X) pada Preview */
+#remove-image-button {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    background-color: #18191c;
+    color: #dcddde;
+    border: 2px solid #2f3136;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+#remove-image-button:hover {
+    background-color: #ed4245;
+    color: white;
+    transform: scale(1.1);
+}
+
+/* Gaya untuk gambar yang sudah terkirim di bubble chat */
+.message-text img.sent-image {
+    max-width: 100%;
+    max-height: 280px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    /* Jarak ke teks pesan di bawahnya */
+    cursor: pointer;
+    transition: filter 0.2s;
+}
+
+.message-text img.sent-image:hover {
+    filter: brightness(0.9);
 }

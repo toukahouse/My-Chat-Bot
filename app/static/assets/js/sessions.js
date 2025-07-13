@@ -25,6 +25,20 @@ window.onload = () => {
         });
     });
 
+    db.version(8).stores({
+        // Definisi dari v7 disalin, lalu kita tambahkan 'imageData'
+        messages: '++id, conversation_id, timestamp, thoughts, imageData, [conversation_id+timestamp]',
+        conversations: '++id, &timestamp, summary, character_name, character_avatar'
+    }).upgrade(tx => {
+        // Fungsi upgrade ini penting agar data lama tidak error.
+        console.log("Upgrading database to version 8, adding imageData column.");
+        return tx.table('messages').toCollection().modify(msg => {
+            if (msg.imageData === undefined) {
+                msg.imageData = null; // Isi dengan null untuk pesan lama
+            }
+        });
+    });
+
     const container = document.getElementById('session-list-container');
 
     // Fungsi utama untuk memuat dan menampilkan semua sesi
