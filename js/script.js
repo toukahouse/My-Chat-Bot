@@ -61,7 +61,7 @@ console.log("✅ Database Dexie (v2) dengan tabel 'conversations' siap.");
 
 
 let chatHistory = [];
-// ...
+let abortController = new AbortController();
 let currentConversationId = null;
 let isReplying = false;
 let lastSummaryCount = 0; // <-- TAMBAHKAN VARIABEL INI. Artinya: "Apakah AI sedang membalas?"
@@ -607,45 +607,84 @@ function addDropdownIcon(messageBubble) {
     icon.addEventListener('click', () => {
         const thoughts = messageBubble.dataset.thoughts;
 
-        // --- PERUBAHAN DI SINI ---
-        // 1. Buat elemen paragraf sementara untuk 'thoughts'
+        // Cek dulu, jangan-jangan popup-nya sudah ada
+        if (document.querySelector('.thought-overlay')) return;
+
+        // --- BUAT ELEMEN SEKALI SAJA ---
         const thoughtsParagraph = document.createElement('p');
         thoughtsParagraph.textContent = thoughts;
-
-        // 2. Terapkan Markdown ke paragraf itu
         formatMarkdown(thoughtsParagraph);
-        // --- AKHIR PERUBAHAN ---
 
         const overlay = document.createElement('div');
         overlay.className = 'thought-overlay';
         const modal = document.createElement('div');
         modal.className = 'thought-modal';
 
-        // 3. Gunakan HTML dari paragraf yang sudah diformat
         modal.innerHTML = `
-            <button class="close-btn">&times;</button>
-            <h3>Pikiran Hana</h3>
-            ${thoughtsParagraph.outerHTML}
-        `;
+        <button class="close-btn">×</button>
+        <h3>Pikiran Hana</h3>
+        ${thoughtsParagraph.outerHTML}
+    `;
 
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
+        // --- FUNGSI UNTUK MENUTUP ---
+        const closeModal = () => {
+            // 1. Hapus kelas 'active' untuk memicu animasi keluar
+            overlay.classList.remove('active');
+
+            // 2. Hapus elemen dari DOM SETELAH animasi selesai
+            overlay.addEventListener('transitionend', () => {
+                if (overlay.parentNode) {
+                    overlay.parentNode.removeChild(overlay);
+                }
+            }, { once: true }); // {once: true} biar listenernya otomatis kehapus
+
+            document.removeEventListener('keydown', handleEscKey);
+        };
+
         const handleEscKey = (e) => {
             if (e.key === 'Escape') closeModal();
         };
-        document.addEventListener('keydown', handleEscKey);
 
-        const closeModal = () => {
-            document.body.removeChild(overlay);
-            document.removeEventListener('keydown', handleEscKey);
-        };
+        // --- AKTIFKAN POPUP ---
+        // Pake setTimeout 0 untuk memastikan elemen sudah ada di DOM sebelum kita nambahin kelas 'active'
+        // Ini trik biar transisi CSS-nya jalan dengan benar
+        setTimeout(() => {
+            overlay.classList.add('active');
+            document.addEventListener('keydown', handleEscKey);
+        }, 0);
+
+
+        // --- EVENT LISTENER UNTUK MENUTUP ---
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) closeModal();
         });
         modal.querySelector('.close-btn').addEventListener('click', closeModal);
     });
 }
+
+// ▼▼▼ TAMBAHKAN FUNGSI BARU INI ▼▼▼
+function animateTextFadeIn(textElement) {
+    // Ambil teks asli
+    const originalText = textElement.textContent;
+    // Pecah jadi kata-kata (atau karakter jika kamu mau)
+    const words = originalText.split(' ');
+
+    // Kosongkan elemennya
+    textElement.innerHTML = '';
+
+    words.forEach((word, index) => {
+        const wordSpan = document.createElement('span');
+        wordSpan.textContent = word + ' '; // Tambah spasi lagi
+        wordSpan.className = 'word-fade-in';
+        // Atur jeda animasi berdasarkan urutan kata
+        wordSpan.style.animationDelay = `${index * 0.05}s`; // Makin besar angkanya, makin lambat
+        textElement.appendChild(wordSpan);
+    });
+}
+// ▲▲▲ SELESAI FUNGSI BARU ▲▲▲
 
 async function getAiResponse(userMessage) {
     const indicatorBubble = createTypingIndicator();
@@ -701,6 +740,7 @@ async function getAiResponse(userMessage) {
                 model: selectedModel,
                 api_key: customApiKey
             }),
+            signal: abortController.signal
         });
 
         const reader = response.body.getReader();
@@ -749,7 +789,16 @@ async function getAiResponse(userMessage) {
         // Cek dulu apakah AI memberikan balasan teks
         if (replyTextElement && replyTextElement.textContent.trim() !== '') {
             const aiReplyText = replyTextElement.textContent;
+            replyTextElement.style.opacity = '0';
+
+            // Lakukan format markdown
             formatMarkdown(replyTextElement);
+
+            // Tampilkan lagi dengan transisi
+            setTimeout(() => {
+                replyTextElement.style.transition = 'opacity 0.5s ease';
+                replyTextElement.style.opacity = '1';
+            }, 50);
             const finalThoughts = accumulatedThoughts.trim();
             const messageData = {
                 conversation_id: currentConversationId, // <-- PENTING!
@@ -781,13 +830,59 @@ async function getAiResponse(userMessage) {
         }
         // ▲▲▲ SELESAI BLOK PENGGANTI ▲▲▲
 
-    } catch (error) {
+    } // PASTE KODE INI DI TEMPAT YANG LAMA
+    catch (error) {
+        // Hentikan timer apa pun yang terjadi
         if (timerInterval) {
             clearInterval(timerInterval);
         }
-        if (indicatorBubble) indicatorBubble.remove();
-        createMessageBubble('ai', 'Gagal terhubung ke server.');
-        console.error("Fetch Error:", error);
+
+        // Cek jenis errornya
+        if (error.name === 'AbortError') {
+            // Ini terjadi jika tombol STOP ditekan
+            console.log("Fetch dihentikan oleh pengguna.");
+            if (indicatorBubble) {
+                const messageTextElement = indicatorBubble.querySelector('.message-text p');
+                // Cek apakah AI sudah sempat menghasilkan teks
+                if (messageTextElement && messageTextElement.textContent.trim()) {
+                    // Jika ya, kita finalisasi pesan parsial ini
+                    console.log("Menyimpan respons parsial...");
+                    const partialReply = messageTextElement.textContent;
+                    formatMarkdown(messageTextElement); // Format apa yang sudah ada
+
+                    // Simpan ke DB (ini sama seperti logika di akhir 'try')
+                    const messageData = {
+                        conversation_id: currentConversationId,
+                        role: 'model',
+                        content: partialReply,
+                        timestamp: new Date(),
+                        thoughts: accumulatedThoughts.trim() // Simpan juga thoughts yg sudah ada
+                    };
+
+                    // Kita tidak pakai 'await' di sini karena ini di dalam 'catch'
+                    db.messages.add(messageData).then(newId => {
+                        indicatorBubble.id = `msg-${newId}`;
+                        indicatorBubble.dataset.id = newId;
+                        chatHistory.push({ id: `msg-${newId}`, role: 'model', parts: [partialReply] });
+                        if (messageData.thoughts) {
+                            indicatorBubble.dataset.thoughts = messageData.thoughts;
+                            addDropdownIcon(indicatorBubble);
+                        }
+                    }).catch(dbError => {
+                        console.error("Gagal simpan respons parsial ke DB:", dbError);
+                    });
+
+                } else {
+                    // Jika AI belum menghasilkan teks sama sekali, hapus bubble 'typing'
+                    indicatorBubble.remove();
+                }
+            }
+        } else {
+            // Ini untuk error lain (misal: gagal konek ke server, API key salah, dll)
+            console.error("Fetch Error (bukan Abort):", error);
+            if (indicatorBubble) indicatorBubble.remove(); // Hapus bubble 'typing'
+            createMessageBubble('ai', 'Waduh, ada masalah koneksi nih.'); // Kasih pesan error yang jelas
+        }
     }
 }
 
@@ -852,56 +947,48 @@ async function handleSummarization() {
         }
     }
 }
-// ▼▼▼ GANTI DENGAN VERSI FINAL INI ▼▼▼
-// ▼▼▼ GANTI FUNGSI sendMessage-mu DENGAN VERSI INI ▼▼▼
+
 async function sendMessage() {
-    if (isReplying) {
-        console.log("Proses sedang berjalan, pesan baru diabaikan.");
-        return;
-    }
-
     const messageText = inputArea.value.trim();
-    if (!messageText) return;
-
-    // Pastikan ada sesi aktif sebelum mengirim
-    if (!currentConversationId) {
-        alert("Terjadi kesalahan: Tidak ada sesi aktif. Coba refresh halaman.");
-        return;
-    }
+    if (!messageText || isReplying) return;
 
     isReplying = true;
+    abortController = new AbortController();
+    sendButton.classList.add('is-stopping');
+    sendButton.title = 'Hentikan';
+
+    // Simpan pesan user dulu
+    const messageData = {
+        conversation_id: currentConversationId,
+        role: 'user',
+        content: messageText,
+        timestamp: new Date()
+    };
+    const newDbId = await db.messages.add(messageData);
+    const messageIdString = `msg-${newDbId}`;
+    const userBubble = createMessageBubble('user', messageText, messageIdString);
+    formatMarkdown(userBubble.querySelector('.message-text p'));
+    scrollToBottom();
+    chatHistory.push({ id: messageIdString, role: 'user', parts: [messageText] });
+    inputArea.value = '';
+    inputArea.style.height = 'auto'; // Kempesin lagi textarea
+    inputArea.focus();
+
     try {
-        // HAPUS SEMUA LOGIKA 'if (!currentConversationId)' YANG LAMA
-        // Langsung saja ke logika mengirim pesan:
-
-        const messageData = {
-            conversation_id: currentConversationId,
-            role: 'user',
-            content: messageText,
-            timestamp: new Date()
-        };
-        const newDbId = await db.messages.add(messageData);
-        const messageIdString = `msg-${newDbId}`;
-        const userBubble = createMessageBubble('user', messageText, messageIdString);
-        formatMarkdown(userBubble.querySelector('.message-text p'));
-        scrollToBottom(); // Panggil fungsi kita // <-- Perbaikan bug markdown
-        chatHistory.push({
-            id: messageIdString,
-            role: 'user',
-            parts: [messageText]
-        });
-        inputArea.value = '';
-        inputArea.focus();
+        // Panggil AI dan TUNGGU sampai selesai (atau di-abort)
         await getAiResponse(messageText);
-        await handleSummarization(); // Tambahkan await di sini untuk memastikan kita menunggu
-
     } catch (error) {
-        console.error("Gagal total saat mengirim pesan:", error);
-        alert("Gagal mengirim pesan, silakan coba lagi.");
+        // getAiResponse akan menangani error-nya sendiri,
+        // kita cuma perlu log di sini jika mau
+        if (error.name !== 'AbortError') {
+            console.error("Terjadi error yang tidak ditangani di luar getAiResponse:", error);
+        }
     } finally {
-        // APA PUN YANG TERJADI (sukses atau gagal), BUKA KEMBALI KUNCINYA.
+        // BLOK INI SEKARANG AKAN SELALU JALAN, BAIK SUKSES MAUPUN GAGAL/ABORT
         isReplying = false;
-        console.log("Proses selesai, kunci dibuka.");
+        sendButton.classList.remove('is-stopping');
+        sendButton.title = 'Kirim';
+        console.log("Proses selesai, kunci dibuka, tombol dikembalikan.");
     }
 }
 
@@ -959,7 +1046,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     // Listener untuk tombol send dan input area
-    sendButton.addEventListener('click', sendMessage);
+    sendButton.addEventListener('click', () => {
+        if (isReplying) {
+            abortController.abort();
+            // ▼▼▼ TAMBAHKAN 3 BARIS INI ▼▼▼
+            // isReplying = false; // Langsung set false
+            // sendButton.classList.remove('is-stopping'); // Langsung balikin tampilan
+            // sendButton.title = 'Kirim'; // Langsung balikin tooltip
+        } else {
+            sendMessage();
+        }
+    });
     inputArea.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();

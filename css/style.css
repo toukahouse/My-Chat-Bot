@@ -205,16 +205,6 @@ body {
     align-items: flex-end;
     gap: 10px;
     background-color: #2f3136;
-
-    /* ▼▼▼ TAMBAHKAN/UBAH INI ▼▼▼ */
-    position: fixed;
-    /* Kunci utama: Tempel di layar */
-    bottom: 0;
-    /* Tempel di paling bawah */
-    left: 0;
-    right: 0;
-    z-index: 100;
-    /* Pastikan dia di atas chat messages */
 }
 
 .chat-input-area textarea {
@@ -249,22 +239,70 @@ body {
     background-color: #5865f2;
     border: none;
     color: #ffffff;
-    font-size: 1.5rem;
-    font-weight: bold;
     border-radius: 50%;
     width: 40px;
     height: 40px;
     cursor: pointer;
     flex-shrink: 0;
     display: flex;
-    /* Bikin ikon pas di tengah */
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s ease;
+    /* ▼▼▼ TAMBAHKAN INI ▼▼▼ */
+    transition: background-color 0.3s ease, transform 0.3s ease;
+    position: relative;
+    /* Penting untuk tumpukan ikon */
+    overflow: hidden;
+    /* Biar ikonnya gak keluar dari lingkaran */
 }
 
 .send-button:hover {
     background-color: #4752c4;
+}
+
+/* GANTI DENGAN BLOK BARU INI */
+.send-button .icon {
+    position: absolute;
+    left: 0;
+    right: 0;
+    margin: auto;
+    /* Kita atur display flex biar SVG-nya pas di tengah span */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Atur posisi awal dan transisi */
+.send-button .icon-send {
+    transform: translateY(0) rotate(45deg);
+    /* Arahkan pesawat kertas ke kanan atas */
+}
+
+.send-button .icon-stop {
+    transform: translateY(40px);
+    /* Sembunyi di bawah */
+}
+
+/* Saat tombol punya kelas .is-stopping */
+.send-button.is-stopping {
+    background-color: #f04747;
+    transform: rotate(0);
+    /* Kita hapus animasi putar biar gak pusing */
+}
+
+.send-button.is-stopping:hover {
+    background-color: #c93d3d;
+}
+
+/* Logika animasi geser ikonnya */
+.send-button.is-stopping .icon-send {
+    transform: translateY(-40px) rotate(45deg);
+    /* Hilang ke atas */
+}
+
+.send-button.is-stopping .icon-stop {
+    transform: translateY(0);
+    /* Muncul dari bawah */
 }
 
 .action-text {
@@ -352,12 +390,25 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(0, 0, 0, 0);
+    /* Mulai dari transparan */
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
-    /* Pastikan selalu di paling depan */
+    transition: background-color 0.3s ease;
+    /* Transisi untuk latar belakang */
+
+    /* State saat tidak aktif (akan kita kontrol via JS) */
+    opacity: 0;
+    pointer-events: none;
+}
+
+.thought-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+    background-color: rgba(0, 0, 0, 0.6);
+    /* Jadi gelap pas aktif */
 }
 
 /* Kotak popup-nya */
@@ -371,9 +422,22 @@ body {
     position: relative;
     border: 1px solid #40444b;
     max-height: 80vh;
-    /* <-- Batasi tinggi maksimal 80% dari layar */
     overflow-y: auto;
-    /* <-- Tambahkan scrollbar vertikal jika kontennya panjang */
+
+    /* ▼▼▼ TAMBAHKAN INI UNTUK ANIMASI ▼▼▼ */
+    transform: scale(0.9);
+    /* Mulai dari sedikit lebih kecil */
+    opacity: 0;
+    /* Mulai dari transparan */
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+}
+
+/* State saat aktif untuk modal */
+.thought-overlay.active .thought-modal {
+    transform: scale(1);
+    /* Kembali ke ukuran normal */
+    opacity: 1;
+    /* Jadi keliatan */
 }
 
 .thought-modal h3 {
@@ -1001,6 +1065,16 @@ body {
         font-size: 0.85rem;
         margin-bottom: 4px;
     }
+
+    .chat-input-area {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        /* Pastikan lebarnya 100% */
+        z-index: 100;
+    }
 }
 
 /* ===== RESEP ANIMASI UNTUK GELEMBUNG CHAT BARU ===== */
@@ -1015,4 +1089,37 @@ body {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* ===== GAYA UNTUK ANIMASI FADE-IN PER KATA ===== */
+.word-fade-in {
+    display: inline-block;
+    /* Penting agar transform bekerja */
+    opacity: 0;
+    transform: translateY(5px);
+    animation: fadeInWord 0.4s ease-out forwards;
+}
+
+@keyframes fadeInWord {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes subtleFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-text>* {
+    /* Target semua elemen di dalam bubble, misal <p> */
+    animation: subtleFadeUp 0.5s ease-out forwards;
 }
