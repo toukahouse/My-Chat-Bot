@@ -67,13 +67,7 @@ let isReplying = false;
 let lastSummaryCount = 0; // <-- TAMBAHKAN VARIABEL INI. Artinya: "Apakah AI sedang membalas?"
 // --- 2. Kumpulan Fungsi Utama ---
 // (Setelah blok setup Dexie)
-function setTrueVh() {
-    // Dapatkan tinggi 'aman' dari window.innerHeight
-    // Ini adalah tinggi viewport yang sebenarnya, tidak termasuk UI browser
-    const trueVh = window.innerHeight * 0.01;
-    // Buat custom property CSS bernama --vh di elemen root (<html>)
-    document.documentElement.style.setProperty('--vh', `${trueVh}px`);
-}
+
 // ▼▼▼ BUAT FUNGSI BARU INI ▼▼▼
 // ▼▼▼ GANTI DENGAN VERSI YANG LEBIH BAIK INI ▼▼▼
 // GANTI SELURUH FUNGSI LAMA DENGAN INI:
@@ -649,7 +643,7 @@ async function getAiResponse(userMessage) {
         }
         // https://toukakazou.pythonanywhere.com/chat
         // http://127.0.0.1:5000/chat
-        const response = await fetch('http://127.0.0.1:5000/chat', {
+        const response = await fetch('https://toukakazou.pythonanywhere.com/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -784,7 +778,7 @@ async function handleSummarization() {
             const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
             // http://127.0.0.1:5000/summarize
             // https://toukakazou.pythonanywhere.com/summarize
-            const response = await fetch('http://127.0.0.1:5000/summarize', { // Pastikan URL sudah benar
+            const response = await fetch('https://toukakazou.pythonanywhere.com/summarize', { // Pastikan URL sudah benar
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -872,8 +866,7 @@ async function sendMessage() {
 
 // HANYA ADA SATU BLOK INI DI SELURUH FILE
 document.addEventListener('DOMContentLoaded', () => {
-    setTrueVh(); // Panggil sekali saat halaman dimuat
-    window.addEventListener('resize', setTrueVh); // 
+
     if (!document.querySelector('.chat-container')) return;
 
     // --- SETUP AWAL HALAMAN CHAT ---
