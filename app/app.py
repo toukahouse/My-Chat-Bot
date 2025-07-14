@@ -38,6 +38,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 # === FUNGSI STREAM GENERATOR (SEKARANG DI LUAR 'CHAT') ===
 def stream_generator(
     image_part,
+    image_uri_info,
     history,
     user_message,
     character_info,
@@ -49,7 +50,31 @@ def stream_generator(
     selected_model,
     custom_api_key,
 ):
+    def format_history_entry(msg):
+        role = msg.get("role")
+        content = msg.get("parts", [""])[0]
+
+        if role == "model":
+            thoughts = msg.get("thoughts", "").strip()
+            if thoughts:
+                # Gabungkan thoughts dan content jika ada
+                return f"model: (My thought process: {thoughts}) {content}"
+            else:
+                # Jika tidak ada thoughts, format seperti biasa
+                return f"model: {content}"
+        else:  # Untuk role 'user'
+            return f"user: {content}"
+
     try:
+        if image_uri_info:
+            uri_data = json.dumps(
+                {
+                    "type": "image_uri",
+                    "uri": image_uri_info["uri"],
+                    "mime": image_uri_info["mime"],
+                }
+            )
+            yield f"data: {uri_data}\n\n"
         api_key_to_use = custom_api_key or os.getenv("GEMINI_API_KEY")
         if not api_key_to_use:
             raise ValueError(
@@ -95,13 +120,13 @@ def stream_generator(
         if summary and len(history) > 10:
             recent_history = history[-8:]
             history_text = "\n".join(
-                [f"{msg['role']}: {msg['parts'][0]}" for msg in recent_history]
+                [format_history_entry(msg) for msg in recent_history]
             )
             history_block = f"Berikut adalah ringkasan...\n<ringkasan>\n{summary}\n</ringkasan>\n\nDan ini adalah 8 pesan terakhir...\n<chat_terbaru>\n{history_text}\n</chat_terbaru>"
         else:
             if history:
                 history_text = "\n".join(
-                    [f"{msg['role']}: {msg['parts'][0]}" for msg in history]
+                    [format_history_entry(msg) for msg in history]
                 )
                 history_block = f"RIWAYAT CHAT SEBELUMNYA:\n{history_text}"
 
@@ -119,20 +144,47 @@ def stream_generator(
             f"{history_block}\n\n"
             f"INGAT: Selalu gunakan gaya bahasa yang santai dan informal sesuai <instruksi_sistem> di atas. "
             f"Jangan pernah gunakan kata 'akan' atau 'tentu saja'.\n"
-            f'model: {user_name} bilang: "{user_message}". Sekarang giliranmu merespon sebagai {character_info.get("name", "karakter")}:\n'
+            # ... (kode sebelumnya)
+            f"Sekarang giliranmu merespon sebagai {character_info.get('name', 'karakter')}. Ingat, jawab dengan gaya bicaramu yang santai dan informal.\n"
             f"model:"
         )
         print(f"Mengirim prompt ke Gemini...")
 
-        # --- 5. Konfigurasi dan panggil AI ---
+        # Gabungkan semua konfigurasi, termasuk safety settings
         config = types.GenerateContentConfig(
             temperature=temperature_value,
             thinking_config=types.ThinkingConfig(include_thoughts=True),
+            safety_settings=[  # <-- Langsung didefinisikan di sini
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+            ],
         )
-        contents_to_send = []
+        user_turn_parts = []
         if image_part:
-            contents_to_send.append(image_part)  # Tambahkan gambar jika ada
-        contents_to_send.append(full_prompt)  # Selalu tambahkan teks prompt
+            user_turn_parts.append(image_part)
+        user_turn_parts.append(f'{user_name} bilang: "{user_message}"')
+
+        # 'contents' adalah list dari setiap 'turn' dalam percakapan.
+        # Turn pertama adalah prompt sistem + history.
+        # Turn kedua adalah pesan dari user (teks + gambar).
+        contents_to_send = [
+            full_prompt,  # Ini dianggap sebagai 'turn' dari AI/sistem
+            user_turn_parts,  # Ini dianggap sebagai 'turn' dari user
+        ]  # Selalu tambahkan teks prompt
 
         # Panggil AI dengan konten yang sudah digabung
         response_stream = client.models.generate_content_stream(
@@ -203,46 +255,74 @@ def show_page(page_name):
 
 
 # === ENDPOINT UNTUK SUMMARIZE ===
+# === ENDPOINT UNTUK SUMMARIZE (VERSI BARU DENGAN AKUMULASI) ===
 @app.route("/summarize", methods=["POST"])
 def summarize():
-    data = request.json
-    history_to_summarize = data.get("history", [])
-    custom_api_key = data.get("api_key", None)  # <-- TAMBAH INI
-    selected_model = data.get("model", "models/gemini-2.5-flash")
-    if not history_to_summarize:
-        return Response(
-            json.dumps({"error": "History kosong"}),
-            status=400,
-            mimetype="application/json",
-        )
     try:
+        data = request.json
+        history_to_summarize = data.get("history", [])
+        old_summary = data.get("old_summary", "").strip()  # <-- AMBIL RINGKASAN LAMA
+        custom_api_key = data.get("api_key", None)
+        selected_model = data.get("model", "models/gemini-2.5-flash")
+
+        if not history_to_summarize:
+            # Jika tidak ada history baru, kembalikan saja ringkasan lama apa adanya.
+            return Response(
+                json.dumps({"summary": old_summary}),
+                status=200,
+                mimetype="application/json",
+            )
+
         history_text = "\n".join(
             [f"{msg['role']}: {msg['parts'][0]}" for msg in history_to_summarize]
         )
         summarization_prompt = (
-            f"Kamu adalah AI ahli meringkas. Ringkaslah percakapan berikut menjadi poin-poin penting dalam bentuk paragraf singkat. "
+            f"Kamu adalah AI ahli meringkas. Ringkaslah PENGGALAN percakapan berikut menjadi poin-poin penting dalam bentuk paragraf singkat. "
             f"TULIS RINGKASAN MENGGUNAKAN GAYA BAHASA SANTAI DAN INFORMAL, HINDARI BAHASA BAKU. "
-            f"Fokus pada kejadian dan dialog kunci.\n\n"
-            f"RIWAYAT PERCAKAPAN:\n{history_text}"
+            f"Fokus hanya pada kejadian dan dialog kunci dari penggalan teks yang diberikan.\n\n"
+            f"PENGGALAN PERCAKAPAN UNTUK DIRINGKAS:\n{history_text}"
         )
+
         api_key_to_use = custom_api_key or os.getenv("GEMINI_API_KEY")
         if not api_key_to_use:
             raise ValueError("Tidak ada API Key yang tersedia untuk meringkas.")
+
         client = genai.Client(api_key=api_key_to_use)
+
+        # Minta AI meringkas HANYA potongan chat yang baru
         response = client.models.generate_content(
             model=selected_model, contents=summarization_prompt
         )
-        summary_text = response.text.strip()
-        print(f"Ringkasan diterima: {summary_text}")
+
+        # ▼▼▼ PERBAIKAN: Cek dulu apakah AI memberikan balasan teks ▼▼▼
+        new_summary_chunk = ""  # Inisialisasi dengan string kosong sebagai default
+        if response.text:
+            # Jika response.text tidak kosong (bukan None), baru kita proses
+            new_summary_chunk = response.text.strip()
+        # ▲▲▲ SELESAI PERBAIKAN ▲▲▲
+
+        print(f"Potongan ringkasan baru diterima: {new_summary_chunk}")
+
+        # --- INI BAGIAN PENTINGNYA: GABUNGKAN DI SINI ---
+        if old_summary:
+            # Jika ada ringkasan lama, gabungkan dengan yang baru
+            final_summary = f"{old_summary}\n\n{new_summary_chunk}"
+        else:
+            # Jika ini ringkasan pertama, jadikan ini sebagai ringkasan final
+            final_summary = new_summary_chunk
+
+        print(f"Ringkasan final yang akan dikirim kembali: {final_summary}")
+
         return Response(
-            json.dumps({"summary": summary_text}),
+            json.dumps({"summary": final_summary}),  # <-- KIRIM HASIL GABUNGAN
             status=200,
             mimetype="application/json",
         )
+
     except Exception as e:
         print(f"❌ Error saat meringkas: {e}")
         return Response(
-            json.dumps({"error": f"Gagal meringkas: {e}"}),
+            json.dumps({"error": f"Gagal meringkas di server: {e}"}),
             status=500,
             mimetype="application/json",
         )
@@ -277,13 +357,19 @@ def chat():
         )
 
     image_part = None
+    image_uri_to_return = (
+        None  # Variabel untuk menyimpan URI yang akan dikirim ke generator
+    )
+
+    # --- LOGIKA BARU UNTUK GAMBAR ---
+    active_image_uri = request.form.get("active_image_uri", None)
+    active_image_mime = request.form.get("active_image_mime", None)
 
     # Proses file gambar jika ada
     if "image" in request.files and request.files["image"].filename != "":
         image_file = request.files["image"]
         temp_file_path = None
         try:
-            # Kita buat client di sini HANYA untuk upload file
             api_key_for_upload = custom_api_key or os.getenv("GEMINI_API_KEY")
             if not api_key_for_upload:
                 raise ValueError("API Key tidak tersedia untuk upload file.")
@@ -295,18 +381,21 @@ def chat():
             temp_file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             image_file.save(temp_file_path)
 
-            print(f"Mengunggah file: {temp_file_path} ke Google...")
-            uploaded_file = upload_client.files.upload(
-                file=temp_file_path
-            )  # Bukan path=, tapi file=
-            image_part = uploaded_file
-            print(f"File berhasil diunggah: {uploaded_file.uri}")
+            print(f"Mengunggah file BARU: {temp_file_path} ke Google...")
+            uploaded_file = upload_client.files.upload(file=temp_file_path)
+
+            # Ini dia bagian pentingnya!
+            image_part = (
+                uploaded_file  # Gunakan objek file langsung untuk request pertama
+            )
+            image_uri_to_return = {
+                "uri": uploaded_file.uri,
+                "mime": image_file.mimetype,  # Kita juga kirim tipe filenya
+            }
+            print(f"File baru berhasil diunggah. URI: {uploaded_file.uri}")
 
         except Exception as e:
             print(f"❌ Gagal memproses gambar: {e}")
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-            # Kirim pesan error ke frontend
             error_data = json.dumps(
                 {"type": "error", "content": f"Gagal upload gambar: {str(e)}"}
             )
@@ -314,11 +403,22 @@ def chat():
         finally:
             if temp_file_path and os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
-
+    elif active_image_uri and active_image_mime:
+        try:
+            print(f"Menggunakan URI gambar yang sudah ada: {active_image_uri}")
+            # Buat 'Part' dari URI yang sudah ada
+            image_part = types.Part.from_uri(
+                file_uri=active_image_uri, mime_type=active_image_mime
+            )
+        except Exception as e:
+            print(f"❌ Gagal membuat Part dari URI: {e}")
+            # Jika gagal, jangan kirim gambar apa pun
+            image_part = None
     # Panggil stream_generator dengan semua data
     return Response(
         stream_generator(
-            image_part,  # Bisa None jika tidak ada gambar, atau berisi file jika ada
+            image_part,
+            image_uri_to_return,  # Bisa None jika tidak ada gambar, atau berisi file jika ada
             history,
             user_message,
             character_info,

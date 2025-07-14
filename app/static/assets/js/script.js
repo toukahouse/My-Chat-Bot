@@ -88,8 +88,11 @@ let abortController = new AbortController();
 let currentConversationId = null;
 let isReplying = false;
 let lastSummaryCount = 0;
-let selectedFile = null; // <-- TAMBAHKAN INI
+let selectedFile = null;
+const SUMMARY_INTERVAL = 10;
+let activeImageInfo = null;// <-- TAMBAHKAN INI
 const sentImageFiles = new Map();
+// GANTI TOTAL FUNGSI loadChatHistory DENGAN INI
 async function loadChatHistory(conversationIdToLoad = null) {
     try {
         let conversationToLoad;
@@ -103,6 +106,7 @@ async function loadChatHistory(conversationIdToLoad = null) {
         chatMessages.innerHTML = ''; // Kosongkan tampilan
         chatHistory = [];            // Kosongkan array history
         currentConversationId = null;  // Reset ID sesi
+        activeImageInfo = null;      // Reset info gambar juga! PENTING!
 
         if (conversationToLoad) {
             currentConversationId = conversationToLoad.id;
@@ -112,13 +116,10 @@ async function loadChatHistory(conversationIdToLoad = null) {
 
             // Loop dan isi ulang dari awal
             for (const msg of messagesFromDb) {
-                const messageIdString = `msg-${msg.id}`;
-                const role = msg.role;
-                const content = msg.content;
-                const sender = role === 'model' ? 'ai' : 'user';
+                // Fungsi createMessageBubble sudah pintar, dia ambil nama dari localStorage
+                const bubble = createMessageBubble(msg.role === 'model' ? 'ai' : 'user', msg.content, `msg-${msg.id}`);
 
-                // Tampilkan di layar
-                const bubble = createMessageBubble(sender, content, messageIdString);
+                // Cek dan tampilkan gambar jika ada
                 if (msg.imageData) {
                     const messageTextContainer = bubble.querySelector('.message-text');
                     const imageElement = document.createElement('img');
@@ -126,39 +127,42 @@ async function loadChatHistory(conversationIdToLoad = null) {
                     imageElement.className = 'sent-image';
                     messageTextContainer.insertBefore(imageElement, messageTextContainer.firstChild);
 
+                    // Jika tidak ada teks, sembunyikan elemen <p>
                     if (!msg.content) {
                         const pElement = messageTextContainer.querySelector('p');
                         if (pElement) pElement.style.display = 'none';
                     }
                 }
+
                 formatMarkdown(bubble.querySelector('.message-text p'));
+
                 if (msg.thoughts && msg.thoughts.trim() !== '') {
-                    bubble.dataset.thoughts = msg.thoughts; // Set dataset dari data DB
-                    addDropdownIcon(bubble); // Tampilkan ikon '💡'
+                    bubble.dataset.thoughts = msg.thoughts;
+                    addDropdownIcon(bubble);
                 }
-                // Masukkan ke array history
+
+                // Masukkan ke array history untuk dikirim ke AI nanti
                 chatHistory.push({
-                    id: messageIdString,
-                    role: role,
-                    parts: [content]
+                    id: `msg-${msg.id}`,
+                    role: msg.role,
+                    parts: [msg.content]
                 });
             }
+            lastSummaryCount = Math.floor(chatHistory.length / SUMMARY_INTERVAL) * SUMMARY_INTERVAL;
+            console.log(`History dimuat. lastSummaryCount di-set ke: ${lastSummaryCount}`);
         } else {
-            // Jika tidak ada sesi sama sekali (web baru dibuka, DB kosong)
-            // Kita buat sesi baru sekarang juga.
             console.log("Database kosong, membuat sesi pertama...");
+            // Jika sesi baru, pastikan lastSummaryCount juga 0.
+            lastSummaryCount = 0;
             await startNewConversation();
         }
 
-        // Selalu scroll ke bawah setelah selesai memuat
         scrollToBottom();
 
-        // Panggil fungsi kita
-
     } catch (error) {
+        // Log error yang lebih informatif
         console.error("Gagal total memuat history:", error);
     }
-
 }
 
 // --- DI DALAM script.js ---
@@ -332,6 +336,7 @@ function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
+        event.target.value = null;
         reader.onload = () => resolve(reader.result);
         reader.onerror = error => reject(error);
     });
@@ -787,7 +792,13 @@ async function getAiResponse(userMessage, fileToSend = null) {
             formData.append('api_key', customApiKey);
         }
         if (fileToSend) {
-            formData.append('image', fileToSend); // <-- INI KUNCINYA
+            formData.append('image', fileToSend); // Kirim file baru
+        }
+        // Jika tidak ada file baru, cek apakah ada URI LAMA yang tersimpan
+        else if (activeImageInfo) {
+            console.log('%c📌 Mengirim URI gambar yang sudah ada ke backend...', 'color: #87CEEB', activeImageInfo.uri);
+            formData.append('active_image_uri', activeImageInfo.uri);
+            formData.append('active_image_mime', activeImageInfo.mime);
         }
         // https://toukakazou.pythonanywhere.com/chat
         // http://127.0.0.1:5000/chat
@@ -826,7 +837,10 @@ async function getAiResponse(userMessage, fileToSend = null) {
                         const data = JSON.parse(line.substring(6));
 
                         // INI KUNCI BARU: Tangani pesan error dari server
-                        if (data.type === 'error') {
+                        if (data.type === 'image_uri') {
+                            console.log('%c📸 URI Gambar Diterima dan Disimpan!', 'color: #fca5b2', data);
+                            activeImageInfo = { uri: data.uri, mime: data.mime };
+                        } else if (data.type === 'error') {
                             console.error("Error dari Server:", data.content);
                             // Hapus bubble 'mengetik' yang lama
                             indicatorBubble.remove();
@@ -834,9 +848,7 @@ async function getAiResponse(userMessage, fileToSend = null) {
                             createMessageBubble('ai', `Error: ${data.content}`, null, true);
                             if (timerInterval) clearInterval(timerInterval);
                             return;
-                        }
-
-                        if (data.type === 'reply') {
+                        } else if (data.type === 'reply') {
                             if (firstChunk) {
                                 const messageTextContainer = indicatorBubble.querySelector('.message-text');
                                 if (messageTextContainer) {
@@ -894,7 +906,8 @@ async function getAiResponse(userMessage, fileToSend = null) {
                 chatHistory.push({
                     id: `msg-${newId}`,
                     role: 'model',
-                    parts: [aiReplyText]
+                    parts: [aiReplyText],
+                    thoughts: finalThoughts
                 });
 
                 if (finalThoughts) { // Jika ada pikiran...
@@ -968,19 +981,14 @@ async function getAiResponse(userMessage, fileToSend = null) {
 // Taruh ini di atas atau di bawah fungsi getAiResponse
 
 async function handleSummarization() {
-    const SUMMARY_INTERVAL = 10;
+    // Kita sudah pindahkan SUMMARY_INTERVAL ke atas jadi bisa dihapus dari sini
 
-    // Log baru yang lebih informatif untuk debugging
     console.log(`Pengecekan ringkasan... Total History: ${chatHistory.length}, Terakhir meringkas di interval: ${lastSummaryCount}`);
 
-    // INI LOGIKA BARUNYA:
-    // Apakah panjang history sudah MELEBIHI atau SAMA DENGAN interval ringkasan berikutnya?
     if (chatHistory.length >= lastSummaryCount + SUMMARY_INTERVAL) {
-
         console.log(`%cALARM BERBUNYI! Panjang history (${chatHistory.length}) telah mencapai ambang batas berikutnya. Memulai proses peringkasan...`, 'color: #ffc107; font-weight: bold;');
 
-        // Tandai bahwa kita SUDAH melewati ambang batas ini, jadi tidak akan dipanggil lagi sampai ambang batas berikutnya
-        lastSummaryCount += SUMMARY_INTERVAL;
+        const targetSummaryCount = lastSummaryCount + SUMMARY_INTERVAL;
 
         try {
             const currentConvo = await db.conversations.get(currentConversationId);
@@ -988,41 +996,48 @@ async function handleSummarization() {
                 console.error("Gagal menemukan sesi percakapan saat ini di DB untuk meringkas.");
                 return;
             }
+
+            // Ambil ringkasan LAMA yang sudah ada di database
             const oldSummary = currentConvo.summary || "";
 
-            // Ambil hanya pesan-pesan baru sejak ringkasan terakhir
-            const historyToSummarize = chatHistory.slice(-SUMMARY_INTERVAL);
+            // Ambil hanya chat baru yang perlu diringkas
+            const historyToSummarize = chatHistory.slice(lastSummaryCount, targetSummaryCount);
+
+            console.log(`Mengirim ${historyToSummarize.length} pesan untuk diringkas (dari indeks ${lastSummaryCount} sampai ${targetSummaryCount})`);
+
             const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
-            // http://127.0.0.1:5000/summarize
-            // https://toukakazou.pythonanywhere.com/summarize
-            const response = await fetch('/summarize', { // Pastikan URL sudah benar
+
+            const response = await fetch('/summarize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     history: historyToSummarize,
-                    api_key: apiSettings.apiKey || null, // <-- TAMBAHKAN INI
-                    model: apiSettings.model || 'models/gemini-2.5-flash-latest' // <-- TAMBAHKAN INI
+                    old_summary: oldSummary, // <-- KIRIM RINGKASAN LAMA KE BACKEND
+                    api_key: apiSettings.apiKey || null,
+                    model: apiSettings.model || 'models/gemini-2.5-flash-latest'
                 }),
             });
 
             if (!response.ok) {
-                throw new Error('Gagal mendapatkan respon dari server peringkasan.');
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Gagal mendapatkan respon dari server peringkasan.');
             }
+            lastSummaryCount = targetSummaryCount;
+            console.log(`%cProses peringkasan untuk blok ini selesai. Counter sekarang di: ${lastSummaryCount}`, 'color: #43b581; font-weight: bold;');
 
             const data = await response.json();
-            const newSummary = data.summary;
+            const updatedSummaryFromServer = data.summary; // Ini adalah ringkasan LAMA + BARU dari server
 
-            if (newSummary) {
-                const updatedSummary = (oldSummary + "\n" + newSummary).trim();
-                await db.conversations.update(currentConversationId, { summary: updatedSummary });
-                console.log(`%cRingkasan baru berhasil disimpan ke DB!`, 'color: #43b581; font-weight: bold;');
+            if (updatedSummaryFromServer) {
+                await db.conversations.update(currentConversationId, { summary: updatedSummaryFromServer });
+                console.log(`%cRingkasan baru dari server berhasil disimpan ke DB.`, 'color: #87CEEB;');
             } else {
-                console.log("Tidak ada ringkasan baru yang diterima dari server.");
+                // Log ini hanya untuk informasi, tidak mempengaruhi alur.
+                console.log("Tidak ada konten ringkasan baru yang diterima dari server untuk disimpan.");
             }
         } catch (error) {
             console.error("Error selama proses handleSummarization:", error);
-            // Jika gagal, kita kurangi lagi counternya agar bisa dicoba lagi nanti
-            lastSummaryCount -= SUMMARY_INTERVAL;
+            // JANGAN update counter jika gagal, agar bisa dicoba lagi nanti.
         }
     }
 }
@@ -1392,6 +1407,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     removeImageButton.addEventListener('click', () => {
         selectedFile = null;
+        activeImageInfo = null;
         imageUploadInput.value = ''; // Reset input file
         imagePreviewContainer.classList.add('hidden');
     });
