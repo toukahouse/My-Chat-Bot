@@ -125,9 +125,7 @@ def stream_generator(
             history_block = f"Berikut adalah ringkasan...\n<ringkasan>\n{summary}\n</ringkasan>\n\nDan ini adalah 8 pesan terakhir...\n<chat_terbaru>\n{history_text}\n</chat_terbaru>"
         else:
             if history:
-                history_text = "\n".join(
-                    [format_history_entry(msg) for msg in history]
-                )
+                history_text = "\n".join([format_history_entry(msg) for msg in history])
                 history_block = f"RIWAYAT CHAT SEBELUMNYA:\n{history_text}"
 
         # --- 4. Gabungkan semua blok menjadi satu prompt utuh ---
@@ -225,14 +223,16 @@ def stream_generator(
                             data_to_send = {"type": "reply", "content": part.text}
                             yield f"data: {json.dumps(data_to_send)}\n\n"
 
-        except Exception as e:
-            # Menangkap error lain yang mungkin terjadi selama iterasi, seperti masalah koneksi
-            print(f"❌ Terjadi error DI DALAM loop streaming: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'content': f'Terjadi masalah saat streaming: {e}'})}\n\n"
+        except types.InternalServerError as e:
+            # Tangkap error 500 secara spesifik
+            print(f"❌ Terjadi Internal Server Error dari API Gemini: {e}")
+            error_content = f"500 INTERNAL. {str(e)}"
+            yield f"data: {json.dumps({'type': 'error', 'content': error_content})}\n\n"
 
     except Exception as e:
-        print(f"❌ Error saat streaming: {e}")
-        yield f"data: {json.dumps({'type': 'error', 'content': 'Error di server.'})}\n\n"
+        # Menangkap error lain yang mungkin terjadi selama iterasi
+        print(f"❌ Terjadi error tak terduga DI DALAM loop streaming: {e}")
+        yield f"data: {json.dumps({'type': 'error', 'content': f'Terjadi masalah saat streaming: {str(e)}'})}\n\n"
 
 
 # --- Route untuk Menyajikan Halaman Utama ---
