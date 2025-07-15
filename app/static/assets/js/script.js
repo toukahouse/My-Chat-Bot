@@ -493,6 +493,50 @@ function createTypingIndicator() {
     return indicator;
 }
 
+// Taruh di bawah fungsi createTypingIndicator()
+
+// FUNGSI BARU UNTUK EFEK MESIN KETIK
+function typewriterEffect(element, text, speed = 10) {
+    return new Promise(resolve => {
+        let i = 0;
+        function type() {
+            if (i < text.length) {
+                // Cek apakah ada tag markdown, jika ada, lewati biar nggak aneh
+                if (text.charAt(i) === '*' && text.charAt(i + 1) === '*') {
+                    // Untuk **bold**
+                    const closingIndex = text.indexOf('**', i + 2);
+                    if (closingIndex !== -1) {
+                        element.textContent += text.substring(i, closingIndex + 2);
+                        i = closingIndex + 2;
+                    } else {
+                        element.textContent += text.charAt(i);
+                        i++;
+                    }
+                } else if (text.charAt(i) === '*') {
+                    // Untuk *italic*
+                    const closingIndex = text.indexOf('*', i + 1);
+                    if (closingIndex !== -1) {
+                        element.textContent += text.substring(i, closingIndex + 1);
+                        i = closingIndex + 1;
+                    } else {
+                        element.textContent += text.charAt(i);
+                        i++;
+                    }
+                }
+                else {
+                    element.textContent += text.charAt(i);
+                    i++;
+                }
+
+                setTimeout(type, speed);
+            } else {
+                resolve(); // Beri tahu kalau ngetik teks ini sudah selesai
+            }
+        }
+        type();
+    });
+}
+
 // GANTI LAGI FUNGSI LAMA DENGAN VERSI "SULTAN" INI
 // GANTI LAGI DENGAN VERSI FINAL "FISIKA PEGAS" INI
 function createAvatarPopup(imageUrl) {
@@ -858,7 +902,8 @@ async function getAiResponse(userMessage, fileToSend = null) {
                                 firstChunk = false;
                             }
                             if (replyTextElement) {
-                                replyTextElement.textContent += data.content;
+                                // Kita panggil fungsi typewriter kita di sini dan tunggu sampai selesai
+                                await typewriterEffect(replyTextElement, data.content, 15); // <-- GANTI DENGAN INI
                             }
                         } else if (data.type === 'thought') {
                             accumulatedThoughts += data.content;
@@ -1213,7 +1258,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Kalau gambar ditemukan...
         if (imageFile) {
             console.log('Gambar dari clipboard terdeteksi!', imageFile);
-            
+
             // Hentikan aksi default browser (biar nggak nempel nama file di textarea)
             event.preventDefault();
 
