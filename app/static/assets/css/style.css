@@ -22,23 +22,21 @@ body {
 }
 
 /* --- Wadah Utama Chat --- */
+/* GANTI TOTAL ATURAN INI */
 .chat-container {
     width: 100%;
     max-width: 800px;
-    /* Lebar maksimal kontainer chat */
     height: 95vh;
-    /* Tinggi 95% dari layar, biar ada sedikit space */
     max-height: 900px;
-    /* Tinggi maksimal */
     background-color: #2f3136;
-    /* Warna latar sedikit lebih terang */
     border-radius: 8px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+
+    /* INI TIGA BARIS KUNCINYA */
     display: flex;
     flex-direction: column;
-    /* Menyusun header, messages, input secara vertikal */
     overflow: hidden;
-    /* Biar sudutnya tetap rounded */
+    /* Pastikan ini ada untuk memotong konten yang keluar */
 }
 
 /* --- Header --- */
@@ -95,11 +93,17 @@ body {
 
 /* --- Area Pesan --- */
 .chat-messages {
-    padding: 10px;
-    gap: 15px;
-    /* Beri ruang kosong di bawah seukuran input area + sedikit buffer */
-    padding-bottom: 120px;
-    /* <-- PERBESAR nilainya biar aman, terutama jika textarea membesar */
+    flex-grow: 1;
+    /* Ambil semua sisa ruang vertikal */
+    padding: 20px;
+    overflow-y: auto;
+    /* Aktifkan scroll HANYA di area ini */
+
+    /* INI KUNCINYA */
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    /* Atur jarak antar gelembung chat di sini */
 }
 
 /* --- Gaya Gelembung Pesan --- */
@@ -193,26 +197,12 @@ body {
 }
 
 /* --- Area Input --- */
+/* PASTIKAN ATURAN INI BENAR */
 .chat-input-area {
-    /* KUNCI UTAMA ADA DI SINI */
-    position: absolute;
-    /* Paksa elemen keluar dari alur normal */
-    bottom: 0;
-    /* Tempel di bagian paling bawah container */
-    left: 0;
-    /* Penuhi dari kiri... */
-    width: 100%;
-    /* ...sampai ke kanan */
-    z-index: 10;
-    /* Pastikan posisinya di atas .chat-messages */
-
-    /* Aturan lama yang masih relevan untuk tampilan */
     padding: 10px 15px;
     border-top: 1px solid #2b2d31;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
     background-color: #2f3136;
+    /* Kita HAPUS display:flex dari sini, karena sudah ada di .input-wrapper */
 }
 
 .chat-input-area textarea {
@@ -1101,60 +1091,61 @@ body {
 
 @media (max-width: 600px) {
 
-    /* ▼▼▼ TAMBAHKAN BLOK BARU INI ▼▼▼ */
     body {
-        align-items: flex-start;
-        /* KUNCI UTAMA: Jangan taruh di tengah, mulai dari atas! */
+        /* Hapus align-items agar container bisa memenuhi tinggi layar */
     }
 
-    /* ▲▲▲ SELESAI BLOK BARU ▲▲▲ */
-
-    /* Pastikan .chat-container juga punya aturan tinggi yang benar */
     .chat-container {
-        height: 100svh;
-        /* Kita balikin lagi pake svh, ini lebih tangguh */
+        height: 100vh;
+        /* Gunakan 100vh di mobile biar full screen */
+        max-height: 100vh;
         width: 100vw;
         border-radius: 0;
         box-shadow: none;
-        max-height: none;
-        position: relative;
-        /* Ini masih perlu buat jadi patokan elemen di dalamnya */
     }
 
     .chat-messages {
         padding: 10px;
         gap: 15px;
-        /* Beri ruang kosong di bawah seukuran input area */
-        padding-bottom: 80px;
-        /* Sesuaikan angkanya jika perlu */
+        /* Jarak antar pesan di mobile */
+        /* Beri ruang kosong di bawah agar tidak tertutup input */
+        padding-bottom: 100px;
+        /* Sesuaikan nilainya jika perlu */
     }
 
+    /* ATURAN LAMA LAINNYA UNTUK MOBILE SEPERTI .avatar, .message-text, dll. BIARKAN SAJA */
     .avatar {
         width: 48px;
         height: 48px;
     }
 
-    .message-text {
-        padding: 8px 12px;
-    }
-
     .message-text p {
-        font-size: 0.80rem;
-        line-height: 1.45;
+        font-size: 0.9rem;
     }
 
     .message-sender {
         font-size: 0.85rem;
-        margin-bottom: 4px;
     }
 
+    /* INI PERBAIKAN FINAL UNTUK AREA INPUT MOBILE */
     .chat-input-area {
-        padding: 10px 15px;
+        position: fixed;
+        /* Paksa nempel di layar, bukan di dalam alur scroll */
+        bottom: 0;
+        /* Nempel di paling bawah layar */
+        left: 0;
+        /* Dari kiri ... */
+        right: 0;
+        /* ... sampai kanan */
+        width: 100%;
+        /* Penuhi lebar layar */
+        z-index: 100;
+        /* Pastikan di atas segalanya */
+
+        /* Aturan lama yang masih relevan */
+        padding: 8px 10px;
+        /* Sedikit lebih ringkas untuk mobile */
         border-top: 1px solid #2b2d31;
-        display: flex;
-        flex-direction: column;
-        /* <-- UBAH INI jadi column */
-        gap: 10px;
         background-color: #2f3136;
     }
 }
