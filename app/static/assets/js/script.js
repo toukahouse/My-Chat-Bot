@@ -1197,6 +1197,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    inputArea.addEventListener('paste', (event) => {
+        // Cek data yang ada di clipboard
+        const items = (event.clipboardData || window.clipboardData).items;
+        let imageFile = null;
+
+        // Loop untuk cari item yang merupakan file gambar
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                imageFile = items[i].getAsFile();
+                break; // Ketemu, langsung hentikan loop
+            }
+        }
+
+        // Kalau gambar ditemukan...
+        if (imageFile) {
+            console.log('Gambar dari clipboard terdeteksi!', imageFile);
+            
+            // Hentikan aksi default browser (biar nggak nempel nama file di textarea)
+            event.preventDefault();
+
+            // Set file yang kita temukan ke variabel global 'selectedFile'
+            // biar fungsi sendMessage() bisa ngambil dari sini
+            selectedFile = imageFile;
+
+            // Gunakan FileReader untuk membaca file dan menampilkannya di preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                imagePreviewContainer.classList.remove('hidden');
+            };
+            reader.readAsDataURL(imageFile);
+        }
+    });
+
     // Listener untuk tombol menu header (☰)
     menuButton.addEventListener('click', (e) => {
         e.stopPropagation();

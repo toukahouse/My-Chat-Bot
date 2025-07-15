@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Karakter Sampingan (NPC)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/style.css') }}">
+    <!-- Kita pakai style yang sama persis kayak world-editor, cuma ganti nama class -->
+    <style>
+        /* === Style untuk halaman Editor NPC === */
+
+        /* Wadah untuk setiap entri NPC */
+        .npc-entry {
+            display: flex;
+            align-items: flex-start;
+            /* Tombol hapus sejajar dengan bagian atas textarea */
+            gap: 10px;
+            margin-bottom: 15px;
+            background-color: #202225;
+            /* Warna latar yang gelap dan nyaman */
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #f04747;
+            /* Warna aksen merah biar beda dari Lorebook */
+        }
+
+        /* Textarea untuk deskripsi NPC */
+        .npc-entry .npc-text {
+            /* Lebih spesifik biar nggak bentrok */
+            flex-grow: 1;
+            /* Biar textarea mengisi sisa ruang */
+            margin: 0 !important;
+            /* Hapus margin default */
+            height: auto;
+            /* Tinggi otomatis sesuai konten */
+            min-height: 120px;
+            /* Tinggi minimal biar lega pas awal, lebih tinggi dari world-editor */
+            background-color: #2f3136;
+            /* Warna yang sedikit lebih terang dari latar */
+            border: 1px solid #40444b;
+            padding: 10px;
+            color: white;
+            border-radius: 3px;
+            resize: vertical;
+            /* User bisa resize tingginya secara manual */
+        }
+
+        /* Tombol hapus 'X' di samping tiap entri */
+        .npc-entry .delete-npc-btn {
+            background-color: #f04747;
+            border: none;
+            color: white;
+            border-radius: 50%;
+            /* Bulat sempurna */
+            width: 30px;
+            height: 30px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            flex-shrink: 0;
+            /* Biar tombol nggak ikut menyusut */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .delete-npc-btn:hover {
+            background-color: #d84040;
+        }
+
+        /* Tombol untuk menambah entri NPC baru */
+        #add-npc-btn {
+            display: block;
+            margin: 0 auto 20px auto;
+            /* Posisinya di tengah, di atas tombol Update */
+            background-color: #5865f2;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: none;
+            color: white;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        #add-npc-btn:hover {
+            background-color: #4a58d4;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="editor-container">
+        <header class="editor-header">
+            <h1>Edit Karakter Sampingan (NPC)</h1>
+            <a href="index.html" class="back-to-chat-btn">Kembali ke Chat</a>
+        </header>
+
+        <main class="editor-main">
+            <!-- Di sini semua entri NPC akan dimunculkan oleh JavaScript -->
+            <div id="npc-list">
+                <!-- Contoh: <div class="npc-entry">...</div> -->
+            </div>
+
+            <!-- Tombol untuk menambah entri NPC baru -->
+            <button id="add-npc-btn">Tambah NPC Baru</button>
+
+            <!-- Tombol utama untuk menyimpan semua perubahan -->
+            <button class="update-button">Update Info NPC</button>
+        </main>
+    </div>
+
+    <!-- Script JS khusus untuk halaman ini -->
+    <script src="{{ url_for('static', filename='assets/js/npc-editor.js') }}" defer></script>
+</body>
+
+</html>

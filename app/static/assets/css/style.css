@@ -95,15 +95,11 @@ body {
 
 /* --- Area Pesan --- */
 .chat-messages {
-    flex-grow: 1;
-    /* Mengambil sisa ruang yang tersedia */
-    padding: 20px;
-    overflow-y: auto;
-    /* Aktifkan scroll jika pesan banyak */
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    /* Jarak antar gelembung pesan */
+    padding: 10px;
+    gap: 15px;
+    /* Beri ruang kosong di bawah seukuran input area + sedikit buffer */
+    padding-bottom: 120px;
+    /* <-- PERBESAR nilainya biar aman, terutama jika textarea membesar */
 }
 
 /* --- Gaya Gelembung Pesan --- */
@@ -197,13 +193,24 @@ body {
 }
 
 /* --- Area Input --- */
-/* --- Area Input Versi Upgrade --- */
 .chat-input-area {
+    /* KUNCI UTAMA ADA DI SINI */
+    position: absolute;
+    /* Paksa elemen keluar dari alur normal */
+    bottom: 0;
+    /* Tempel di bagian paling bawah container */
+    left: 0;
+    /* Penuhi dari kiri... */
+    width: 100%;
+    /* ...sampai ke kanan */
+    z-index: 10;
+    /* Pastikan posisinya di atas .chat-messages */
+
+    /* Aturan lama yang masih relevan untuk tampilan */
     padding: 10px 15px;
     border-top: 1px solid #2b2d31;
     display: flex;
     flex-direction: column;
-    /* Biar preview bisa di atas */
     gap: 10px;
     background-color: #2f3136;
 }
@@ -252,13 +259,14 @@ body {
 
 /* Wadah baru yang membungkus tombol + dan textarea */
 .textarea-container {
-    flex-grow: 1; 
+    flex-grow: 1;
     display: flex;
-    align-items: center; 
+    align-items: center;
     background-color: #40444b;
-    border: 1px solid #40444b; /* <-- INI BORDER AWALNYA */
+    border: 1px solid #40444b;
+    /* <-- INI BORDER AWALNYA */
     border-radius: 20px;
-    padding: 0 8px; 
+    padding: 0 8px;
     transition: border-color 0.2s ease;
 }
 
@@ -1264,4 +1272,163 @@ body {
 
 .message-text img.sent-image:hover {
     filter: brightness(0.9);
+}
+
+.card-content {
+    padding: 15px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    /* <-- PENTING: Untuk posisi tombol hapus */
+}
+
+.delete-session-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #a3a6aa;
+    font-size: 1.3rem;
+    /* Ukuran ikon tong sampah */
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    line-height: 1;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.delete-session-btn:hover {
+    background-color: #ff3e3e4a;
+    /* Warna merah transparan pas di-hover */
+    color: #ff4d4d;
+    /* Warna merah terang */
+}
+
+#session-list-container {
+    display: grid;
+    /* Aktifkan Grid Layout */
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    /* INI AJAIBNYA:
+       - Buat kolom sebanyak mungkin yang muat.
+       - Setiap kolom lebarnya minimal 280px.
+       - '1fr' artinya sisa ruang kosong dibagi rata.
+       Ini yang bikin responsif otomatis. */
+    gap: 25px;
+    /* Jarak antar kartu */
+}
+
+.session-card {
+    background-color: #2f3136;
+    border-radius: 8px;
+    overflow: hidden;
+    text-decoration: none;
+    color: #dcddde;
+    box-shadow: 0 4px M10px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+
+    /* PENTING: Biarkan kartu tumbuh mengisi ruang di dalam grid */
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    /* Tetap perlu untuk tombol hapus */
+}
+
+.session-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Link yang membungkus konten kartu */
+a.card-link-wrapper {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    /* Tumpuk gambar dan konten di dalam link */
+    flex-grow: 1;
+}
+
+/* Wadah untuk gambar, ini yang bikin aspect ratio terjaga */
+/* GANTI ATURAN LAMA DENGAN INI */
+.card-image-container {
+    width: 100%;
+    /* Kita TIDAK pakai padding-top lagi di sini */
+}
+
+.card-image {
+    width: 100%;
+    /* Penuhi lebar wadahnya */
+    height: auto;
+    /* Biarkan tinggi menyesuaikan secara otomatis sesuai rasio asli gambar */
+    max-height: 250px;
+    /* BATAS TINGGI MAKSIMAL, ini kuncinya biar gak kegedean */
+    object-fit: cover;
+    /* Tetap pakai ini, ini yang bikin gambar pas dan gak penyok */
+    display: block;
+    /* Mencegah space aneh di bawah gambar */
+}
+
+/* PASTIKAN ATURAN INI ADA */
+.card-content {
+    padding: 15px;
+}
+
+/* WADAH GAMBAR DENGAN ASPECT RATIO */
+.card-image-container {
+    width: 100%;
+    padding-top: 75%;
+    /* Kunci Aspect Ratio 4:3 (Tinggi = 75% dari Lebar) */
+    position: relative;
+    background-color: #202225;
+}
+
+/* GAMBARNYA SENDIRI */
+.card-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Paksa gambar mengisi wadah tanpa penyok */
+}
+
+/* KONTEN TEKS DI BAWAH GAMBAR */
+.card-content {
+    padding: 15px;
+    flex-grow: 1;
+    /* Biar konten ini mengisi sisa ruang vertikal kartu */
+    display: flex;
+    flex-direction: column;
+}
+
+.card-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 8px;
+}
+
+.card-summary {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    flex-grow: 1;
+    /* Biar summary mengisi ruang */
+    margin-bottom: 15px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    /* Potong teks yang lebih dari 3 baris */
+}
+
+.card-footer {
+    border-top: 1px solid #36393f;
+    padding-top: 10px;
+    font-size: 0.8rem;
+    color: #a3a6aa;
+    display: flex;
+    justify-content: space-between;
 }
