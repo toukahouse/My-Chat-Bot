@@ -377,12 +377,17 @@ body {
     /* Muncul dari bawah */
 }
 
+
 .action-text {
-    color: #b9bbbe;
-    /* Warna sedikit lebih redup */
+    color: #b9bbbe; /* Warna sedikit lebih redup */
     font-style: italic;
 }
+/* Taruh ini di bawah selector .action-text */
 
+.dialog-italic {
+    font-style: italic;
+    /* Biarkan warnanya ikut warna teks paragraf induk (putih) */
+}
 /* ======================================================= */
 /* ===== BAGIAN INDIKATOR MENGETIK (VERSI FINAL) ===== */
 /* ======================================================= */

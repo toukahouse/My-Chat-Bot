@@ -255,20 +255,27 @@ async function displayGreeting() {
 // FUNGSI BARU: Untuk memformat markdown
 function formatMarkdown(element) {
     let currentText = element.textContent || '';
-    // Regex baru yang bisa menangani *...* dan **...**
-    const formattedHTML = currentText.replace(/(\*+)(.*?)\1/g, '<span class="action-text">$2</span>');
+
+    // Prioritaskan yang bintang dua (**) dulu, baru bintang satu (*)
+    // Ini penting biar *teks* di dalam **aksi *teks* aksi** tidak ikut termatching
+    const formattedHTML = currentText
+        .replace(/\*\*(.*?)\*\*/g, '<span class="action-text">$1</span>') // Untuk **teks** jadi aksi
+        .replace(/\*(.*?)\*/g, '<span class="dialog-italic">$1</span>');  // Untuk *teks* jadi miring biasa
+
     element.innerHTML = formattedHTML;
 }
 
 function convertHtmlToMarkdown(htmlContent) {
-    // Buat elemen div sementara di memori untuk mem-parsing HTML
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
 
-    // Ganti setiap <span class="action-text">...</span> dengan *...*
-    const actionSpans = tempDiv.querySelectorAll('.action-text');
-    actionSpans.forEach(span => {
-        // Ganti elemen span dengan teks yang sudah diapit bintang
+    // Ganti .action-text jadi **teks**
+    tempDiv.querySelectorAll('.action-text').forEach(span => {
+        span.replaceWith(`**${span.textContent}**`);
+    });
+
+    // Ganti .dialog-italic jadi *teks*
+    tempDiv.querySelectorAll('.dialog-italic').forEach(span => {
         span.replaceWith(`*${span.textContent}*`);
     });
 
