@@ -1148,6 +1148,15 @@ body {
         border-top: 1px solid #2b2d31;
         background-color: #2f3136;
     }
+
+    /* Di dalam blok @media (max-width: 600px) { ... } */
+
+    .message-text p {
+        font-size: 0.75rem;
+        /* <-- UBAH ANGKA INI */
+        line-height: 1.5;
+        /* <-- Tambahkan ini biar jarak antar barisnya pas */
+    }
 }
 
 /* ===== RESEP ANIMASI UNTUK GELEMBUNG CHAT BARU ===== */
