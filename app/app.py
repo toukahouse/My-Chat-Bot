@@ -118,17 +118,25 @@ def stream_generator(
             npc_block = f"Berikut adalah deskripsi karakter sampingan (NPC) yang akan muncul saat roleplay...\n<karakter_sampingan>\n{formatted_npcs}\n</karakter_sampingan>\n\n"
         history_block = ""
         if summary and len(history) > 10:
-            recent_history = history[-8:]
+            # Kita perpanjang ingatannya dari 8 jadi 20 pesan terakhir! Ini kuncinya.
+            recent_history = history[-20:]
             history_text = "\n".join(
                 [format_history_entry(msg) for msg in recent_history]
             )
-            history_block = f"Berikut adalah ringkasan...\n<ringkasan>\n{summary}\n</ringkasan>\n\nDan ini adalah 8 pesan terakhir...\n<chat_terbaru>\n{history_text}\n</chat_terbaru>"
+            # Jangan lupa update teks penjelasannya juga biar AI lebih paham konteksnya
+            history_block = f"Berikut adalah ringkasan dari percakapan yang sudah sangat panjang...\n<ringkasan>\n{summary}\n</ringkasan>\n\nDan ini adalah 20 pesan terakhir untuk menjaga konteks...\n<chat_terbaru>\n{history_text}\n</chat_terbaru>"
         else:
             if history:
                 history_text = "\n".join([format_history_entry(msg) for msg in history])
                 history_block = f"RIWAYAT CHAT SEBELUMNYA:\n{history_text}"
 
         # --- 4. Gabungkan semua blok menjadi satu prompt utuh ---
+        enhanced_system_instruction = (
+            f"{system_instruction}\n"
+            f"- Selalu berikan respons yang deskriptif, detail, dan panjang dalam beberapa paragraf. Jangan pernah menjawab dengan satu kalimat singkat."
+            f"- Jelaskan tindakan, pikiran, dan dialog karaktermu secara mendalam."
+        )
+
         full_prompt = (
             f"Kamu adalah sebuah karakter AI dengan peran dan instruksi sebagai berikut\n"
             f"{persona_text_block}"
@@ -136,13 +144,12 @@ def stream_generator(
             f"{memory_block}"
             f"{world_info_block}"
             f"{npc_block}"
-            f"Ikuti instruksi sistem ini, ikuti setiap instruksi dan aturan yang ditulis dan ini bersifat mutlak dan wajib untuk dipatuhi :\n<instruksi_sistem>\n{system_instruction}\n</instruksi_sistem>\n\n"
-            f"Gunakan contoh dialog ini sebagai referensi gaya bicara kamu yang informal.. \n<contoh_dialog>\n{example_dialogs}\n</contoh_dialog>\n\n"
+            f"Ikuti instruksi sistem ini, ikuti setiap instruksi dan aturan roleplay yang ditulis dan ini bersifat mutlak dan wajib untuk dipatuhi :\n<instruksi_sistem>\n{enhanced_system_instruction}\n</instruksi_sistem>\n\n"
+            f"Contoh dialog ini adalah cetak biru (blueprint) untuk responsmu. Ikuti GAYA BAHASA, KEDALAMAN, dan PANJANG respons dari contoh ini:\n<contoh_dialog>\n{example_dialogs}\n</contoh_dialog>\n\n"
             f"---\n\n"
             f"{history_block}\n\n"
             f"INGAT: Selalu gunakan gaya bahasa yang santai dan informal sesuai <instruksi_sistem> di atas. "
             f"Jangan pernah gunakan kata 'akan' atau 'tentu saja'.\n"
-            # ... (kode sebelumnya)
             f"Sekarang giliranmu merespon sebagai {character_info.get('name', 'karakter')}. Ingat, jawab dengan gaya bicaramu yang santai dan informal.\n"
             f"model:"
         )
@@ -277,10 +284,15 @@ def summarize():
             [f"{msg['role']}: {msg['parts'][0]}" for msg in history_to_summarize]
         )
         summarization_prompt = (
-            f"Kamu adalah AI ahli meringkas. Ringkaslah PENGGALAN percakapan berikut menjadi poin-poin penting dalam bentuk paragraf singkat. "
-            f"TULIS RINGKASAN MENGGUNAKAN GAYA BAHASA SANTAI DAN INFORMAL, HINDARI BAHASA BAKU. "
-            f"Fokus hanya pada kejadian dan dialog kunci dari penggalan teks yang diberikan.\n\n"
-            f"PENGGALAN PERCAKAPAN UNTUK DIRINGKAS:\n{history_text}"
+            f"Kamu adalah AI yang bertugas meringkas percakapan. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf.\n\n"
+            f"ATURAN RINGKASAN:\n"
+            f"- Gaya bahasa HARUS informal dan santai.\n"
+            f"- Fokus pada detail penting: janji spesifik, kesepakatan, nama, tempat, dan perubahan emosi.\n"
+            f"- JANGAN menambahkan opinimu atau informasi yang tidak ada di dalam teks.\n\n"
+            f"PENTING: Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri. JANGAN sertakan kalimat pembuka seperti 'Berikut adalah ringkasannya' atau 'Oke, ini ringkasannya'. Langsung tulis poin-poin ringkasannya.\n\n"
+            f"--- PENGGALAN PERCAKAPAN YANG HARUS DIRINGKAS ---\n"
+            f"{history_text}\n"
+            f"--- SELESAI ---"
         )
 
         api_key_to_use = custom_api_key or os.getenv("GEMINI_API_KEY")

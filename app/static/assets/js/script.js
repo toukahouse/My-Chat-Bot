@@ -455,8 +455,29 @@ async function exitEditMode(messageBubble, newText) {
         chatHistory[messageIndex].parts[0] = newText;
 
         // 5. Minta respons baru dari AI
+        // 5. Minta respons baru dari AI
         console.log("History baru (setelah edit) dikirim ke AI:", chatHistory);
-        getAiResponse(newText);
+
+        // ▼▼▼ TAMBAHKAN LOGIKA STOP DI SINI ▼▼▼
+        isReplying = true;
+        abortController = new AbortController();
+        sendButton.classList.add('is-stopping');
+        sendButton.title = 'Hentikan';
+
+        try {
+            await getAiResponse(newText);
+            // Jika ada summarization setelah edit, bisa ditambahkan di sini
+            // await handleSummarization(); 
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error("Error fatal saat edit pesan:", error);
+            }
+        } finally {
+            isReplying = false;
+            sendButton.classList.remove('is-stopping');
+            sendButton.title = 'Kirim';
+        }
+        // ▲▲▲ SELESAI PENAMBAHAN ▲▲▲
 
     } catch (error) {
         console.error("Gagal total saat proses edit dan sinkronisasi DB:", error);
@@ -1409,7 +1430,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (triggerMessage) {
                     console.log("Memicu regenerate dengan pesan:", triggerMessage);
-                    getAiResponse(triggerMessage);
+
+                    // ▼▼▼ TAMBAHKAN LOGIKA STOP DI SINI ▼▼▼
+                    isReplying = true;
+                    abortController = new AbortController();
+                    sendButton.classList.add('is-stopping');
+                    sendButton.title = 'Hentikan';
+
+                    try {
+                        await getAiResponse(triggerMessage);
+                        // Regenerate biasanya nggak perlu summary, tapi jika perlu bisa ditambah
+                    } catch (error) {
+                        if (error.name !== 'AbortError') {
+                            console.error("Error fatal saat regenerate:", error);
+                        }
+                    } finally {
+                        isReplying = false;
+                        sendButton.classList.remove('is-stopping');
+                        sendButton.title = 'Kirim';
+                    }
+                    // ▲▲▲ SELESAI PENAMBAHAN ▲▲▲
+
                 } else {
                     console.error("Tidak ditemukan pesan user sebelumnya untuk me-regenerate.");
                 }
