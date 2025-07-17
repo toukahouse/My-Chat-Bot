@@ -130,13 +130,6 @@ def stream_generator(
                 history_text = "\n".join([format_history_entry(msg) for msg in history])
                 history_block = f"RIWAYAT CHAT SEBELUMNYA:\n{history_text}"
 
-        # --- 4. Gabungkan semua blok menjadi satu prompt utuh ---
-        enhanced_system_instruction = (
-            f"{system_instruction}\n"
-            f"- Selalu berikan respons yang deskriptif, detail, dan panjang dalam beberapa paragraf. Jangan pernah menjawab dengan satu kalimat singkat."
-            f"- Jelaskan tindakan, pikiran, dan dialog karaktermu secara mendalam."
-        )
-
         full_prompt = (
             f"Kamu adalah sebuah karakter AI dengan peran dan instruksi sebagai berikut\n"
             f"{persona_text_block}"
@@ -144,8 +137,10 @@ def stream_generator(
             f"{memory_block}"
             f"{world_info_block}"
             f"{npc_block}"
-            f"Ikuti instruksi sistem ini, ikuti setiap instruksi dan aturan roleplay yang ditulis dan ini bersifat mutlak dan wajib untuk dipatuhi :\n<instruksi_sistem>\n{enhanced_system_instruction}\n</instruksi_sistem>\n\n"
-            f"Contoh dialog ini adalah cetak biru (blueprint) untuk responsmu. Ikuti GAYA BAHASA, KEDALAMAN, dan PANJANG respons dari contoh ini:\n<contoh_dialog>\n{example_dialogs}\n</contoh_dialog>\n\n"
+            f"Ikuti instruksi sistem ini, ikuti setiap instruksi dan aturan yang ditulis dan ini bersifat mutlak dan wajib untuk dipatuhi :\n<instruksi_sistem>\n{system_instruction}\n</instruksi_sistem>\n\n"
+            f"- Selalu berikan respons yang deskriptif, detail, dan panjang dalam beberapa paragraf. Jangan pernah menjawab dengan satu kalimat singkat."
+            f"- Jelaskan tindakan atau pikiran yang banyaknya 20%, dan dialog percakapan yang banyaknya 80% untuk karaktermu secara mendalam. mengikuti semua instruksi di atas.\n\n"
+            f"Gunakan contoh dialog ini sebagai referensi gaya bicara kamu yang informal.. \n<contoh_dialog>\n{example_dialogs}\n</contoh_dialog>\n\n"
             f"---\n\n"
             f"{history_block}\n\n"
             f"INGAT: Selalu gunakan gaya bahasa yang santai dan informal sesuai <instruksi_sistem> di atas. "
