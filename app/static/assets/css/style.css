@@ -161,6 +161,8 @@ body {
 .message-text p {
     margin: 0;
     color: #e3e4e5;
+    white-space: pre-wrap;
+    /* <-- TAMBAHKAN BARIS AJAIB INI */
     /* Warna teks dialog normal (putih) */
 }
 
@@ -1474,13 +1476,16 @@ a.card-link-wrapper {
 
 /* Warna untuk jenis notifikasi */
 .toast-notification.info {
-    background-color: #2196F3; /* Biru */
+    background-color: #2196F3;
+    /* Biru */
 }
 
 .toast-notification.error {
-    background-color: #f44336; /* Merah */
+    background-color: #f44336;
+    /* Merah */
 }
 
 .toast-notification.success {
-    background-color: #4CAF50; /* Hijau */
+    background-color: #4CAF50;
+    /* Hijau */
 }
