@@ -31,9 +31,8 @@
     <div class="editor-container">
         <header class="editor-header">
             <h1>Pengaturan API & Model</h1>
-            <a href="index.html" class="back-to-chat-btn">Kembali ke Chat</a>
+            <a href="#" id="back-button" class="back-to-chat-btn">Kembali sini</a>
         </header>
-
         <main class="editor-main">
             <div class="form-group">
                 <label for="api-key">Kunci API Gemini</label>
@@ -61,6 +60,12 @@
         </main>
     </div>
 
+    <script>
+        document.getElementById('back-button').addEventListener('click', function (event) {
+            event.preventDefault(); // Mencegah link pindah halaman
+            history.back();       // Suruh browser kembali ke halaman sebelumnya
+        });
+    </script>
     <!-- Script yang akan kita buat selanjutnya -->
     <script src="{{ url_for('static', filename='assets/js/api-settings.js') }}" defer></script>
 </body>

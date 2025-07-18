@@ -15,7 +15,7 @@
 
         <header class="editor-header">
             <h1>Pilih Sesi Percakapan</h1>
-            <a href="{{ url_for('index') }}" class="back-to-chat-btn">Kembali</a>
+            <a href="#" id="back-to-chat-button" class="back-to-chat-btn">Kembali</a>
         </header>
 
         <main class="editor-main">
@@ -27,8 +27,13 @@
 
     </div> <!-- Penutup .editor-container -->
 
+    <script>
+        document.getElementById('back-button').addEventListener('click', function (event) {
+            event.preventDefault(); // Mencegah link pindah halaman
+            history.back();       // Suruh browser kembali ke halaman sebelumnya
+        });
+    </script>
     <!-- Panggil library dari CDN -->
-    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/locale/id.js"></script>

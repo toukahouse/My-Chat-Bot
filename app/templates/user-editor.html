@@ -13,7 +13,7 @@
     <div class="editor-container">
         <header class="editor-header">
             <h1>Edit Persona User</h1>
-            <a href="index.html" class="back-to-chat-btn">Kembali ke Chat</a>
+            <a href="#" id="back-button" class="back-to-chat-btn">Kembali</a>
         </header>
 
         <main class="editor-main">
@@ -50,7 +50,12 @@
             <button class="update-button">Update Persona</button>
         </main>
     </div>
-
+    <script>
+        document.getElementById('back-button').addEventListener('click', function (event) {
+            event.preventDefault(); // Mencegah link pindah halaman
+            history.back();       // Suruh browser kembali ke halaman sebelumnya
+        });
+    </script>
     <script src="{{ url_for('static', filename='assets/js/user-editor.js') }}" defer></script>
 </body>
 

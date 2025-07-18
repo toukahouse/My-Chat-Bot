@@ -4,6 +4,9 @@ from flask import Flask, request, Response, render_template
 from dotenv import load_dotenv
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+import psycopg2
+from urllib.parse import urlparse
+from waitress import serve
 
 try:
     from google import genai
@@ -22,17 +25,6 @@ UPLOAD_FOLDER = "temp_uploads"
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-
-# --- KONEKSI KE GEMINI ---
-# try:
-#     api_key = os.getenv("GEMINI_API_KEY")
-#     if not api_key:
-#         raise ValueError("GEMINI_API_KEY tidak ditemukan!")
-#     client = genai.Client(api_key=api_key)
-#     print("✅ Client Gemini 2.5 berhasil dibuat.")
-# except Exception as e:
-#     print(f"❌ Terjadi kesalahan saat membuat client Gemini: {e}")
-#     exit()
 
 
 # === FUNGSI STREAM GENERATOR (SEKARANG DI LUAR 'CHAT') ===
@@ -441,10 +433,388 @@ def chat():
     )
 
 
-# --- JALANKAN APLIKASI ---
-# --- JALANKAN APLIKASI DENGAN WAITRESS ---
+# 1. Fungsi helper untuk koneksi ke Database PostgreSQL
+def get_db_connection():
+    """Fungsi ini membaca DATABASE_URL dari .env dan membuat koneksi."""
+    try:
+        # Baca URL dari environment variable
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            raise ValueError("DATABASE_URL tidak ditemukan di file .env")
+
+        # Parsing URL jadi komponen-komponen
+        result = urlparse(db_url)
+        username = result.username
+        password = result.password
+        database = result.path[1:]
+        hostname = result.hostname
+        port = result.port
+
+        # Buat koneksi ke database
+        conn = psycopg2.connect(
+            host=hostname,
+            database=database,
+            user=username,
+            password=password,
+            port=port
+        )
+        return conn
+    except Exception as e:
+        print(f"❌ GAGAL KONEK KE DATABASE POSTGRESQL: {e}")
+        # Return None jika gagal, biar aplikasi tidak crash total
+        return None
+
+# 2. Endpoint untuk MENGAMBIL semua sesi dari Gudang Pusat (PostgreSQL)
+@app.route("/api/sessions", methods=["GET"])
+def get_all_sessions():
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            # Jika koneksi gagal, kirim error 503 Service Unavailable
+            return Response(json.dumps({"error": "Server tidak bisa terhubung ke database."}), status=503, mimetype='application/json')
+
+        # Pakai 'with' biar cursor otomatis ditutup
+        with conn.cursor() as cur:
+            # Query ini aku udah sesuaikan 100% sama struktur tabel kamu
+            cur.execute("""
+                SELECT
+                    c.id,
+                    c.timestamp,
+                    c.summary,
+                    c.character_name,
+                    c.character_avatar,
+                    (SELECT COUNT(*) FROM public.message m WHERE m.conversation_id = c.id) as message_count
+                FROM
+                    public.conversation c
+                ORDER BY
+                    c.timestamp DESC;
+            """)
+            # Ambil semua baris hasil query
+            sessions_from_db = cur.fetchall()
+
+        # Ubah data dari format database (tuple) jadi format yang bisa dibaca JS (list of dict)
+        sessions_list = []
+        for row in sessions_from_db:
+            sessions_list.append({
+                "id": row[0],
+                "timestamp": row[1].isoformat() if row[1] else None, # isoformat() itu standar universal buat tanggal
+                "summary": row[2],
+                "character_name": row[3],
+                "character_avatar": row[4],
+                "message_count": row[5]
+            })
+
+        # Kirim datanya sebagai JSON
+        return Response(json.dumps(sessions_list), status=200, mimetype='application/json')
+
+    except Exception as e:
+        print(f"❌ Terjadi kesalahan di endpoint /api/sessions: {e}")
+        return Response(json.dumps({"error": "Terjadi kesalahan di server saat mengambil data sesi."}), status=500, mimetype='application/json')
+    finally:
+        # Apapun yang terjadi, pastikan koneksi ke database ditutup
+        if conn is not None:
+            conn.close()
+
+# 3. Endpoint untuk MENGHAPUS sesi dari Gudang Pusat (PostgreSQL)
+@app.route("/api/sessions/<int:session_id>", methods=["DELETE"])
+def delete_session(session_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return Response(json.dumps({"error": "Server tidak bisa terhubung ke database."}), status=503, mimetype='application/json')
+
+        # Kita pakai transaksi, jadi kalau salah satu gagal, semua dibatalkan. Aman!
+        with conn.cursor() as cur:
+            # Hapus dulu semua 'anak'-nya (pesan-pesan) di tabel messages
+            # ...
+# Hapus dulu semua 'anak'-nya (pesan-pesan) di tabel message
+            cur.execute("DELETE FROM message WHERE conversation_id = %s", (session_id,))
+            # Baru hapus 'induk'-nya di tabel conversation
+            cur.execute("DELETE FROM conversation WHERE id = %s", (session_id,))
+
+        # Simpan perubahan permanen ke database
+        conn.commit()
+
+        print(f"✅ Sesi ID {session_id} dan semua pesannya berhasil dihapus dari database.")
+        return Response(json.dumps({"message": "Sesi berhasil dihapus"}), status=200, mimetype='application/json')
+
+    except Exception as e:
+        # Jika ada error, batalkan semua perubahan
+        if conn:
+            conn.rollback()
+        print(f"❌ Gagal menghapus sesi ID {session_id}: {e}")
+        return Response(json.dumps({"error": "Gagal menghapus sesi di server."}), status=500, mimetype='application/json')
+    finally:
+        if conn is not None:
+            conn.close()
+
+# Taruh ini di app.py, di bawah fungsi get_all_sessions()
+
+# 4. Endpoint untuk MEMBUAT sesi BARU di Gudang Pusat (PostgreSQL)
+# Di dalam app.py
+
+# 4. Endpoint untuk MEMBUAT sesi BARU di Gudang Pusat (PostgreSQL)
+# Di dalam app.py
+
+# 4. Endpoint untuk MEMBUAT sesi BARU di Gudang Pusat (PostgreSQL)
+@app.route("/api/sessions", methods=["POST"])
+def create_new_session():
+    conn = None
+    try:
+        # Ambil data yang dikirim dari frontend (JS)
+        data = request.json
+        char_name = data.get("character_name")
+        char_avatar = data.get("character_avatar")
+        char_greeting = data.get("character_greeting", "Halo, ada apa?")
+
+        conn = get_db_connection()
+        if conn is None:
+            return Response(json.dumps({"error": "Server tidak bisa terhubung ke database."}), status=503, mimetype='application/json')
+
+        # Ini adalah satu-satunya query yang harus ada di sini
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO public.conversation (character_name, character_avatar, summary, greeting, timestamp) VALUES (%s, %s, %s, %s, NOW() AT TIME ZONE 'Asia/Makassar') RETURNING id",
+                (char_name, char_avatar, 'Percakapan baru dimulai...', char_greeting)
+            )
+            # Ambil ID yang baru saja dibuat oleh database
+            new_session_id = cur.fetchone()[0]
+        
+        # Simpan perubahan ke database
+        conn.commit()
+
+        print(f"✅ Sesi baru berhasil dibuat di database dengan ID: {new_session_id}")
+        
+        # Kirim kembali ID baru itu ke frontend
+        return Response(json.dumps({"new_session_id": new_session_id}), status=201, mimetype='application/json')
+
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"❌ Gagal membuat sesi baru: {e}")
+        return Response(json.dumps({"error": "Gagal membuat sesi baru di server."}), status=500, mimetype='application/json')
+    finally:
+        if conn is not None:
+            conn.close()
+
+# ===================================================================
+# === API ENDPOINTS BARU UNTUK HALAMAN CHAT ===
+# ===================================================================
+
+# 5. Endpoint untuk MENGAMBIL semua pesan dari sebuah sesi
+@app.route("/api/sessions/<int:session_id>/messages", methods=["GET"])
+def get_messages_for_session(session_id):
+    conn = None
+    # Di dalam fungsi get_messages_for_session(session_id)
+
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503, mimetype='application/json')
+
+        # Kita gabungin semua dalam satu blok 'with' biar efisien
+        with conn.cursor() as cur:
+            # === Query Pertama: Ambil semua pesan ===
+            cur.execute(
+                "SELECT id, role, content, thoughts, image_data, timestamp FROM public.message WHERE conversation_id = %s ORDER BY timestamp ASC",
+                (session_id,) # Variabel session_id kebaca di sini
+            )
+            messages_from_db = cur.fetchall()
+
+            messages_list = []
+            for row in messages_from_db:
+                messages_list.append({
+                    "db_id": row[0],
+                    "role": row[1],
+                    "content": row[2],
+                    "thoughts": row[3],
+                    "imageData": row[4],
+                    "timestamp": row[5].isoformat()
+                })
+            
+            # === Query Kedua: Ambil greeting dari sesi yang sama ===
+            cur.execute(
+                "SELECT greeting FROM public.conversation WHERE id = %s",
+                (session_id,) # Variabel session_id juga kebaca di sini
+            )
+            result = cur.fetchone()
+            greeting = result[0] if result and result[0] is not None else "Selamat datang!"
+
+        # Return dilakukan di luar 'with' block, setelah semua query selesai
+        return Response(json.dumps({"messages": messages_list, "greeting": greeting}), status=200, mimetype='application/json')
+
+    except Exception as e:
+        print(f"❌ Error di get_messages_for_session: {e}")
+        return Response(json.dumps({"error": "Gagal mengambil pesan"}), status=500, mimetype='application/json')
+    finally:
+        if conn:
+            conn.close()
 
 
-# --- JALANKAN APLIKASI ---
+# 6. Endpoint untuk MENYIMPAN pesan BARU
+@app.route("/api/messages", methods=["POST"])
+def add_new_message():
+    conn = None
+    try:
+        data = request.json
+        # Ambil semua data dari frontend
+        session_id = data.get("conversation_id")
+        role = data.get("role")
+        content = data.get("content")
+        thoughts = data.get("thoughts", None) # Bisa kosong
+        image_data = data.get("imageData", None) # Bisa kosong
+
+        conn = get_db_connection()
+        if conn is None:
+            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503, mimetype='application/json')
+
+        with conn.cursor() as cur:
+            # Ganti nama tabelnya jadi 'message' (tanpa 's')
+            cur.execute(
+                "INSERT INTO public.message (conversation_id, role, content, thoughts, image_data, timestamp) VALUES (%s, %s, %s, %s, %s, NOW() AT TIME ZONE 'Asia/Makassar') RETURNING id",
+                (session_id, role, content, thoughts, image_data)
+            )
+            new_message_id = cur.fetchone()[0]
+        
+        conn.commit()
+        return Response(json.dumps({"new_message_id": new_message_id}), status=201, mimetype='application/json')
+
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"❌ Error di add_new_message: {e}")
+        return Response(json.dumps({"error": "Gagal menyimpan pesan"}), status=500, mimetype='application/json')
+    finally:
+        if conn: conn.close()
+
+
+# 7. Endpoint untuk MENGUPDATE ringkasan
+@app.route("/api/sessions/<int:session_id>/summary", methods=["POST"])
+def update_session_summary(session_id):
+    conn = None
+    try:
+        data = request.json
+        new_summary = data.get("summary")
+
+        conn = get_db_connection()
+        if conn is None:
+            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503, mimetype='application/json')
+
+        with conn.cursor() as cur:
+            # Ganti nama tabelnya jadi 'conversation' (tanpa 's')
+            cur.execute(
+                "UPDATE public.conversation SET summary = %s WHERE id = %s",
+                (new_summary, session_id)
+            )
+        
+        conn.commit()
+        return Response(json.dumps({"message": "Ringkasan berhasil diupdate"}), status=200, mimetype='application/json')
+
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"❌ Error di update_session_summary: {e}")
+        return Response(json.dumps({"error": "Gagal update ringkasan"}), status=500, mimetype='application/json')
+    finally:
+        if conn: conn.close()
+
+# 8. Endpoint untuk MENGAMBIL info SATU sesi (termasuk summary)
+@app.route("/api/sessions/<int:session_id>", methods=["GET"])
+def get_single_session_info(session_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503, mimetype='application/json')
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT summary FROM public.conversation WHERE id = %s",
+                (session_id,)
+            )
+            result = cur.fetchone()
+        
+        if result:
+            return Response(json.dumps({"summary": result[0]}), status=200, mimetype='application/json')
+        else:
+            return Response(json.dumps({"error": "Sesi tidak ditemukan"}), status=404, mimetype='application/json')
+            
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"❌ Error di mengambil_session_summary: {e}")
+        return Response(json.dumps({"error": "Gagal mengambil ringkasan"}), status=500, mimetype='application/json')
+    finally:
+        if conn: conn.close()
+
+# ===================================================================
+# === API ENDPOINTS BARU UNTUK MANIPULASI PESAN ===
+# ===================================================================
+
+# ===================================================================
+# === API ENDPOINTS FINAL UNTUK MANIPULASI PESAN ===
+# ===================================================================
+
+# 9. Endpoint untuk MENGHAPUS pesan (bisa satu atau banyak)
+#    Kita pake metode POST biar bisa kirim body (daftar ID)
+@app.route("/api/messages/delete", methods=["POST"])
+def delete_messages_unified():
+    conn = None
+    try:
+        data = request.json
+        ids_to_delete = data.get("ids") # Selalu harapkan daftar/list
+
+        if not ids_to_delete or not isinstance(ids_to_delete, list):
+            return Response(json.dumps({"error": "Daftar ID tidak valid"}), status=400, mimetype='application/json')
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM public.message WHERE id IN %s", (tuple(ids_to_delete),))
+        conn.commit()
+        
+        print(f"✅ Pesan dengan ID {ids_to_delete} berhasil dihapus.")
+        return Response(json.dumps({"message": "Pesan berhasil dihapus"}), status=200, mimetype='application/json')
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"❌ Error di delete_messages_unified: {e}")
+        return Response(json.dumps({"error": "Gagal hapus pesan di server"}), status=500, mimetype='application/json')
+    finally:
+        if conn: conn.close()
+
+
+# 10. Endpoint untuk MENGUPDATE pesan (fitur Edit & Resend)
+#     Ini juga akan hapus history setelahnya
+@app.route("/api/messages/<int:message_id>/update", methods=["POST"])
+def update_message_unified(message_id):
+    conn = None
+    try:
+        data = request.json
+        new_content = data.get("content")
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Hapus dulu semua pesan SETELAH pesan yang diedit
+            cur.execute(
+                "DELETE FROM public.message WHERE id > %s AND conversation_id = (SELECT conversation_id FROM public.message WHERE id = %s)",
+                (message_id, message_id)
+            )
+            # Baru UPDATE konten pesan yang diedit
+            cur.execute(
+                "UPDATE public.message SET content = %s WHERE id = %s",
+                (new_content, message_id)
+            )
+        conn.commit()
+        return Response(json.dumps({"message": "Pesan berhasil diupdate dan history setelahnya dihapus"}), status=200, mimetype='application/json')
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"❌ Error di update_message_unified: {e}")
+        return Response(json.dumps({"error": "Gagal update pesan di server"}), status=500, mimetype='application/json')
+    finally:
+        if conn: conn.close()
+
+# 11. Endpoint untuk Regenerate (menghapus pesan AI terakhir)
+#    Kita bisa pake ulang endpoint DELETE, tapi kita butuh cara tau ID pesan AI terakhir.
+#    Untuk sekarang, kita asumsikan frontend akan mengirimkan ID pesan AI yang mau dihapus.
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    print("✅ Server development diganti ke Waitress yang lebih kuat.")
+    print("🚀 Server berjalan di http://127.0.0.1:5000")
+    serve(app, host="0.0.0.0", port=5000)

@@ -12,75 +12,6 @@ const imageUploadInput = document.getElementById('image-upload-input');
 const imagePreviewContainer = document.getElementById('image-preview-container');
 const imagePreview = document.getElementById('image-preview');
 const removeImageButton = document.getElementById('remove-image-button');
-// Di bawah const dropdownMenu = ...
-const db = new Dexie('ChatDatabase');
-db.version(5).stores({
-    // Versi 5: Tambah kolom 'thoughts' untuk menyimpan pikiran AI
-    messages: '++id, conversation_id, timestamp, thoughts, [conversation_id+timestamp]',
-    conversations: '++id, &timestamp, summary'
-}).upgrade(tx => {
-    // Fungsi upgrade ini penting jika user sudah punya database versi lama.
-    // Ini memastikan data lama tidak hilang, hanya saja kolom 'thoughts' akan kosong.
-    console.log("Upgrading database to version 5, 'thoughts' column will be backfilled with empty string.");
-    return tx.table('messages').toCollection().modify(msg => {
-        if (msg.thoughts === undefined) {
-            msg.thoughts = ""; // Isi dengan string kosong untuk data lama
-        }
-
-    });
-});
-
-db.version(6).stores({
-    // Definisi untuk versi 6 sudah mencakup 'thoughts' dari v5 dan 'summary' yang baru
-    messages: '++id, conversation_id, timestamp, thoughts, [conversation_id+timestamp]',
-    conversations: '++id, &timestamp, summary'
-}).upgrade(tx => {
-    // Fungsi upgrade ini hanya berjalan jika database user ada di versi 5 dan ingin ke 6
-    console.log("Upgrading database to version 6, 'summary' column will be backfilled with empty string.");
-    return tx.table('conversations').toCollection().modify(convo => {
-        if (convo.summary === undefined) {
-            convo.summary = ""; // Isi kolom summary baru dengan string kosong
-        }
-    });
-});
-
-db.version(7).stores({
-    messages: '++id, conversation_id, timestamp, thoughts, [conversation_id+timestamp]',
-    // Tambahkan kolom baru untuk nama dan avatar karakter
-    conversations: '++id, &timestamp, summary, character_name, character_avatar'
-}).upgrade(tx => {
-    // Fungsi upgrade ini penting agar data sesi lama tidak error.
-    // Kita akan mengisi kolom baru dengan string kosong untuk data lama.
-    console.log("Upgrading database to version 7, adding character info columns.");
-    return tx.table('conversations').toCollection().modify(convo => {
-        if (convo.character_name === undefined) {
-            convo.character_name = "";
-        }
-        if (convo.character_avatar === undefined) {
-            convo.character_avatar = "";
-        }
-    });
-});
-
-// ... (setelah db.version(7)...)
-
-// ▼▼▼ TAMBAHKAN VERSI BARU INI ▼▼▼
-db.version(8).stores({
-    // Definisi dari v7 disalin, lalu kita tambahkan 'imageData'
-    messages: '++id, conversation_id, timestamp, thoughts, imageData, [conversation_id+timestamp]',
-    conversations: '++id, &timestamp, summary, character_name, character_avatar'
-}).upgrade(tx => {
-    // Fungsi upgrade ini penting agar data lama tidak error.
-    console.log("Upgrading database to version 8, adding imageData column.");
-    return tx.table('messages').toCollection().modify(msg => {
-        if (msg.imageData === undefined) {
-            msg.imageData = null; // Isi dengan null untuk pesan lama
-        }
-    });
-});
-// ▲▲▲ SELESAI ▲▲▲
-
-console.log("✅ Database Dexie (v2) dengan tabel 'conversations' siap.");
 
 
 let chatHistory = [];
@@ -92,163 +23,149 @@ let selectedFile = null;
 const SUMMARY_INTERVAL = 10;
 let activeImageInfo = null;// <-- TAMBAHKAN INI
 const sentImageFiles = new Map();
-// GANTI TOTAL FUNGSI loadChatHistory DENGAN INI
-async function loadChatHistory(conversationIdToLoad = null) {
-    try {
-        let conversationToLoad;
-        if (conversationIdToLoad) {
-            conversationToLoad = await db.conversations.get(conversationIdToLoad);
-        } else {
-            conversationToLoad = await db.conversations.orderBy('timestamp').last();
-        }
 
-        // KUNCI UTAMA: BERSIHKAN SEMUANYA DULU!
-        chatMessages.innerHTML = ''; // Kosongkan tampilan
-        chatHistory = [];            // Kosongkan array history
-        currentConversationId = null;  // Reset ID sesi
-        activeImageInfo = null;      // Reset info gambar juga! PENTING!
+// GANTI TOTAL FUNGSI INI DI js/script.js
+async function loadChatHistory() {
+    // KUNCI UTAMA: BERSIHKAN SEMUANYA DULU!
+    chatMessages.innerHTML = '';
+    chatHistory = [];
+    currentConversationId = null;
+    activeImageInfo = null;
 
-        if (conversationToLoad) {
-            currentConversationId = conversationToLoad.id;
-            const messagesFromDb = await db.messages
-                .where({ conversation_id: currentConversationId })
-                .sortBy('timestamp');
+    // Ambil ID sesi dari URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionIdFromUrl = urlParams.get('session_id');
 
-            // Loop dan isi ulang dari awal
-            for (const msg of messagesFromDb) {
-                // Fungsi createMessageBubble sudah pintar, dia ambil nama dari localStorage
-                const bubble = createMessageBubble(msg.role === 'model' ? 'ai' : 'user', msg.content, `msg-${msg.id}`);
+    if (sessionIdFromUrl && !isNaN(sessionIdFromUrl)) {
+        currentConversationId = parseInt(sessionIdFromUrl);
+        localStorage.setItem('lastActiveSessionId', currentConversationId);
 
-                // Cek dan tampilkan gambar jika ada
-                if (msg.imageData) {
-                    const messageTextContainer = bubble.querySelector('.message-text');
-                    const imageElement = document.createElement('img');
-                    imageElement.src = msg.imageData;
-                    imageElement.className = 'sent-image';
-                    messageTextContainer.insertBefore(imageElement, messageTextContainer.firstChild);
+        console.log(`Mencoba memuat sesi dari server. ID: ${currentConversationId}`);
+        try {
+            const response = await fetch(`/api/sessions/${currentConversationId}/messages`);
+            if (!response.ok) {
+                // Tampilkan pesan error yang lebih spesifik jika sesi tidak ditemukan
+                chatMessages.innerHTML = `<p class="error-message">Gagal memuat sesi chat. Mungkin sesi ini sudah dihapus atau ID tidak valid.</p>`;
+                return; // Hentikan fungsi di sini
+            }
+            const data = await response.json();
+            const messagesFromServer = data.messages;
 
-                    // Jika tidak ada teks, sembunyikan elemen <p>
-                    if (!msg.content) {
-                        const pElement = messageTextContainer.querySelector('p');
-                        if (pElement) pElement.style.display = 'none';
-                    }
-                }
-
+            // Loop dan isi ulang chat dari data server
+            for (const msg of messagesFromServer) {
+                const bubble = createMessageBubble(msg.role, msg.content, `msg-${msg.db_id}`);
+                // ... (logika untuk gambar, thoughts, dll)
                 formatMarkdown(bubble.querySelector('.message-text p'));
-
-                if (msg.thoughts && msg.thoughts.trim() !== '') {
-                    bubble.dataset.thoughts = msg.thoughts;
-                    addDropdownIcon(bubble);
-                }
-
-                // Masukkan ke array history untuk dikirim ke AI nanti
                 chatHistory.push({
-                    id: `msg-${msg.id}`,
+                    id: `msg-${msg.db_id}`,
                     role: msg.role,
                     parts: [msg.content]
                 });
             }
+
+            // Jika tidak ada pesan sama sekali (sesi baru), tampilkan sapaan
+            if (messagesFromServer.length === 0 && data.greeting) {
+                setTimeout(() => {
+                    displayGreeting(data.greeting);
+                }, 100);
+            }
+
             lastSummaryCount = Math.floor(chatHistory.length / SUMMARY_INTERVAL) * SUMMARY_INTERVAL;
-            console.log(`History dimuat. lastSummaryCount di-set ke: ${lastSummaryCount}`);
-        } else {
-            console.log("Database kosong, membuat sesi pertama...");
-            // Jika sesi baru, pastikan lastSummaryCount juga 0.
-            lastSummaryCount = 0;
-            await startNewConversation();
+
+        } catch (error) {
+            console.error("Gagal memuat history dari server:", error);
+            chatMessages.innerHTML = `<p class="error-message">Terjadi masalah saat mengambil data. Cek koneksi internet dan coba lagi.</p>`;
         }
-
-        scrollToBottom();
-
-    } catch (error) {
-        // Log error yang lebih informatif
-        console.error("Gagal total memuat history:", error);
+    } else {
+        // Jika tidak ada session_id yang valid di URL, JANGAN LAKUKAN APA-APA.
+        // Biarkan halaman chat tetap kosong.
+        console.log("Tidak ada session_id yang valid. Menampilkan halaman chat kosong.");
     }
+    scrollToBottom();
 }
 
 // --- DI DALAM script.js ---
 
 // TAMBAHKAN FUNGSI BARU INI (TARUH DI BAWAH loadChatHistory):
+// GANTI TOTAL FUNGSI LAMA DENGAN INI di js/script.js
+
 async function startNewConversation() {
     try {
+        console.log("Memulai proses pembuatan sesi baru ke server...");
+
+        // 1. Siapkan data yang mau dikirim ke server
         const characterData = JSON.parse(localStorage.getItem('characterData') || '{}');
         const charName = characterData.name || 'Karakter';
         const charAvatar = characterData.avatar_url || '';
-        // 1. Buat sesi baru di DB
-        const newConversationId = await db.conversations.add({
-            timestamp: new Date(),
-            title: `Percakapan Baru - ${new Date().toLocaleDateString()}`,
-            character_name: charName,      // <-- Data baru
-            character_avatar: charAvatar
+        // AMBIL GREETING DARI LOCALSTORAGE
+        const charGreeting = characterData.greeting || 'Halo!';
+
+        // 2. Kirim permintaan ke backend, sekarang dengan data greeting
+        const response = await fetch('/api/sessions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                character_name: charName,
+                character_avatar: charAvatar,
+                character_greeting: charGreeting // <-- KIRIM GREETING KE SERVER
+            }),
         });
 
-        // 2. Update variabel global
-        currentConversationId = newConversationId;
-        lastSummaryCount = 0;
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Server gagal membuat sesi baru.');
+        }
 
-        // 3. Update URL browser
-        const newUrl = `${window.location.pathname}?session_id=${newConversationId}`;
-        history.pushState({ sessionId: newConversationId }, '', newUrl);
+        // 3. Terima ID sesi baru yang dikasih sama server
+        const responseData = await response.json();
+        const newConversationId = responseData.new_session_id;
 
-        // 4. Reset total tampilan dan history array
-        chatMessages.innerHTML = '';
-        chatHistory = [];
+        if (!newConversationId) {
+            throw new Error("Server tidak memberikan ID sesi baru.");
+        }
 
-        console.log(`Sesi baru dimulai dengan ${charName}: ID ${currentConversationId}`);
+        console.log(`✅ Server berhasil membuat sesi baru dengan ID: ${newConversationId}`);
 
-
-        // 5. Tampilkan sapaan
-        await displayGreeting();
+        // 4. Arahkan pengguna ke halaman chat dengan ID sesi yang baru
+        // Ini cara paling simpel dan efektif
+        window.location.href = `index.html?session_id=${newConversationId}`;
 
     } catch (error) {
-        console.error("Gagal memulai percakapan baru:", error);
+        console.error("Gagal total saat startNewConversation:", error);
+        alert(`Gagal memulai percakapan baru: ${error.message}`);
     }
 }
 
-// (Di bawah fungsi loadChatHistory)
+// GANTI TOTAL FUNGSI INI DI js/script.js
+async function displayGreeting(greetingText) {
+    if (!greetingText || !currentConversationId) return;
 
-// ▼▼▼ GANTI DENGAN VERSI BARU INI ▼▼▼
-// ▼▼▼ GANTI FUNGSI LAMA DENGAN VERSI INI ▼▼▼
-// --- DI DALAM script.js ---
+    try {
+        // 1. Tampilkan sapaan di layar
+        const greetingBubble = createMessageBubble('model', greetingText, `msg-greeting-${Date.now()}`);
+        formatMarkdown(greetingBubble.querySelector('.message-text p'));
 
-// GANTI DENGAN VERSI BARU INI:
-async function displayGreeting() {
-    // 1. Cek dulu, apakah ada sesi yang aktif?
-    if (!currentConversationId) {
-        console.log("Tidak ada sesi aktif, sapaan tidak ditampilkan.");
-        // Jika tidak ada sesi aktif (misalnya saat pertama kali buka web & DB kosong),
-        // jangan lakukan apa-apa. Sesi akan dibuat saat pesan pertama dikirim.
-        return;
-    }
-
-    const savedData = localStorage.getItem('characterData');
-    const characterData = savedData ? JSON.parse(savedData) : {};
-    const greetingText = characterData.greeting;
-
-    if (greetingText) {
-        try {
-            // 2. Siapkan data pesan sapaan untuk DISIMPAN di sesi yang SUDAH ADA.
-            const messageData = {
-                conversation_id: currentConversationId, // <-- Pakai ID yang sudah ada
+        // 2. Simpan pesan sapaan ini ke Gudang Pusat (PostgreSQL)
+        const response = await fetch('/api/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                conversation_id: currentConversationId,
                 role: 'model',
-                content: greetingText,
-                timestamp: new Date()
-            };
+                content: greetingText
+            }),
+        });
+        const data = await response.json();
+        const newDbId = data.new_message_id;
 
-            // 3. Simpan sapaan ke DB dan tampilkan
-            const newDbId = await db.messages.add(messageData);
-            const messageIdString = `msg-${newDbId}`;
+        // Update ID bubble dan history array dengan ID dari database
+        greetingBubble.id = `msg-${newDbId}`;
+        chatHistory.push({ id: `msg-${newDbId}`, role: 'model', parts: [greetingText] });
 
-            const greetingBubble = createMessageBubble('ai', greetingText, messageIdString);
-            formatMarkdown(greetingBubble.querySelector('.message-text p'));
-            chatHistory.push({
-                id: messageIdString,
-                role: 'model',
-                parts: [greetingText]
-            });
-
-        } catch (error) {
-            console.error("Gagal menyimpan pesan sapaan:", error);
-        }
+    } catch (error) {
+        console.error("Gagal menyimpan pesan sapaan ke server:", error);
     }
 }
 
@@ -401,87 +318,73 @@ function enterEditMode(messageBubble) {
 }
 
 // GANTI SELURUH FUNGSI INI
+// GANTI TOTAL FUNGSI INI
+// GANTI TOTAL FUNGSI EDIT DENGAN VERSI FINAL INI
+// GANTI TOTAL FUNGSI EDIT DENGAN VERSI SUPER INI
 async function exitEditMode(messageBubble, newText) {
-    messageBubble.classList.remove('is-editing');
-    const messageTextDiv = messageBubble.querySelector('.message-text');
-    const currentTextElement = messageTextDiv.querySelector('p');
-    const editArea = messageTextDiv.querySelector('.edit-area');
-
-    currentTextElement.textContent = newText;
+    // Sembunyikan area edit dulu, apapun yang terjadi
+    const editArea = messageBubble.querySelector('.edit-area');
     if (editArea) {
+        messageBubble.classList.remove('is-editing');
         editArea.remove();
     }
-    currentTextElement.style.display = 'block';
-    formatMarkdown(currentTextElement);
+    const currentTextElement = messageBubble.querySelector('.message-text p');
+    if (currentTextElement) currentTextElement.style.display = 'block';
 
-    const messageIdString = messageBubble.id;
     const messageDbId = parseInt(messageBubble.dataset.id);
+    if (isNaN(messageDbId)) {
+        alert("Gagal: ID pesan tidak valid.");
+        return;
+    }
 
-    const messageIndex = chatHistory.findIndex(msg => msg.id === messageIdString);
-    if (messageIndex === -1) {
-        console.error("Tidak bisa menemukan pesan untuk diupdate di history!");
-        return; // Hentikan fungsi jika tidak ketemu
+    // Cek apakah pesan user punya gambar
+    let imageFileToResend = null;
+    const imgElement = messageBubble.querySelector('.sent-image');
+    if (imgElement) {
+        const response = await fetch(imgElement.src);
+        const blob = await response.blob();
+        imageFileToResend = new File([blob], "edited_image.png", { type: blob.type });
     }
 
     try {
-        // 1. UPDATE pesan yang diedit di dalam IndexedDB
-        await db.messages.update(messageDbId, { content: newText });
-
-        // 2. CARI semua ID pesan yang ada SETELAH pesan yang diedit
-        const idsToDelete = [];
-        for (let i = messageIndex + 1; i < chatHistory.length; i++) {
-            const idStr = chatHistory[i].id;
-            idsToDelete.push(parseInt(idStr.replace('msg-', '')));
-        }
-
-        // 3. HAPUS semua pesan tersebut dari IndexedDB
-        if (idsToDelete.length > 0) {
-            await db.messages.bulkDelete(idsToDelete);
-        }
-
-        // 4. SINKRONKAN tampilan dan array lokal SEKARANG
-        // Hapus gelembung chat dari tampilan
-        let currentBubble = messageBubble.nextElementSibling;
-        while (currentBubble) {
-            let nextBubble = currentBubble.nextElementSibling;
-            currentBubble.remove();
-            currentBubble = nextBubble;
-        }
-
-        // Potong array history lokal kita
-        chatHistory.splice(messageIndex + 1);
-
-        // Update juga teks di array lokal
-        chatHistory[messageIndex].parts[0] = newText;
-
-        // 5. Minta respons baru dari AI
-        // 5. Minta respons baru dari AI
-        console.log("History baru (setelah edit) dikirim ke AI:", chatHistory);
-
-        // ▼▼▼ TAMBAHKAN LOGIKA STOP DI SINI ▼▼▼
         isReplying = true;
         abortController = new AbortController();
         sendButton.classList.add('is-stopping');
         sendButton.title = 'Hentikan';
 
-        try {
-            await getAiResponse(newText);
-            // Jika ada summarization setelah edit, bisa ditambahkan di sini
-            // await handleSummarization(); 
-        } catch (error) {
-            if (error.name !== 'AbortError') {
-                console.error("Error fatal saat edit pesan:", error);
-            }
-        } finally {
-            isReplying = false;
-            sendButton.classList.remove('is-stopping');
-            sendButton.title = 'Kirim';
+        // Langkah 1: Minta backend buat UPDATE pesan user dan HAPUS semua pesan setelahnya.
+        // Endpoint /update kamu di app.py udah pinter, dia ngelakuin 2 hal ini sekaligus.
+        console.log(`Meminta server untuk update pesan ID ${messageDbId} dan menghapus history setelahnya.`);
+        const updateResponse = await fetch(`/api/messages/${messageDbId}/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: newText })
+        });
+
+        if (!updateResponse.ok) {
+            throw new Error("Server gagal mengupdate pesan.");
         }
-        // ▲▲▲ SELESAI PENAMBAHAN ▲▲▲
+
+        console.log("Update di server berhasil. Memuat ulang history chat untuk sinkronisasi...");
+
+        // Langkah 2: MUAT ULANG seluruh history chat dari server.
+        // Ini cara paling anti-gagal buat mastiin tampilan di layar 100% sama kayak di database.
+        await loadChatHistory();
+
+        // Langkah 3: Setelah history bersih dan sinkron, BARU minta respons AI baru.
+        console.log("History sinkron. Meminta respons AI baru...");
+        await getAiResponse(newText, imageFileToResend);
 
     } catch (error) {
-        console.error("Gagal total saat proses edit dan sinkronisasi DB:", error);
-        alert("Terjadi kesalahan saat menyimpan editan. Silakan coba lagi.");
+        if (error.name !== 'AbortError') {
+            console.error("Gagal total saat proses edit/resend:", error);
+            alert("Terjadi kesalahan. Silakan coba lagi.");
+            await loadChatHistory(); // Kalau gagal, coba muat ulang lagi biar gak aneh
+        }
+    } finally {
+        isReplying = false;
+        sendButton.classList.remove('is-stopping');
+        sendButton.title = 'Kirim';
     }
 }
 // ▲▲▲ SELESAI KUMPULAN FUNGSI BARU ▲▲▲
@@ -811,45 +714,46 @@ function animateTextFadeIn(textElement) {
 }
 // ▲▲▲ SELESAI FUNGSI BARU ▲▲▲
 
+// GANTI TOTAL FUNGSI getAiResponse DENGAN INI
 async function getAiResponse(userMessage, fileToSend = null) {
     const indicatorBubble = createTypingIndicator();
     let replyTextElement;
     let accumulatedThoughts = '';
-    let timerInterval; // Variabel untuk menyimpan interval
-    const startTime = Date.now(); // Catat waktu mulai
+    let timerInterval;
+    const startTime = Date.now();
 
-    // Cari elemen timer yang baru saja kita buat di dalam gelembung indikator
     const timerElement = indicatorBubble.querySelector('.typing-timer');
-
     if (timerElement) {
-        // Mulai interval yang akan mengupdate timer setiap 100 milidetik
         timerInterval = setInterval(() => {
             const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
             timerElement.textContent = `${elapsedTime}s`;
-        }, 100); // Update setiap 0.1 detik
+        }, 100);
     }
+
     const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
     const selectedModel = apiSettings.model || 'models/gemini-2.5-flash';
     const customApiKey = apiSettings.apiKey || null;
-    const savedData = localStorage.getItem('characterData');
-    const characterData = savedData ? JSON.parse(savedData) : {};
-    const savedUserData = localStorage.getItem('userData');
-    const userData = savedUserData ? JSON.parse(savedUserData) : {};
+    const characterData = JSON.parse(localStorage.getItem('characterData') || '{}');
+    const userData = JSON.parse(localStorage.getItem('userData') || '{}');
 
     try {
         const memoryData = JSON.parse(localStorage.getItem('memoryData') || '[]');
         const worldData = JSON.parse(localStorage.getItem('worldData') || '[]');
         const npcData = JSON.parse(localStorage.getItem('npcData') || '[]');
+
+        // Ambil summary langsung dari server sebelum kirim ke AI
         let currentSummary = "";
         if (currentConversationId) {
-            const currentConvo = await db.conversations.get(currentConversationId);
-            if (currentConvo && currentConvo.summary) {
-                currentSummary = currentConvo.summary;
-                console.log("%cMengambil ringkasan dari DB untuk dikirim ke AI:", "color: #87CEEB;", currentSummary);
-            }
+            const response = await fetch(`/api/sessions/${currentConversationId}`);
+            const data = await response.json();
+            currentSummary = data.summary || "";
+        }
+        if (currentSummary) {
+            console.log("%c📚 Mengirim prompt ke AI dengan MENGGUNAKAN SEMUA RINGKASAN yang ada:", "color: #4CAF50; font-weight: bold;", currentSummary);
+        } else {
+            console.log("%c📚 Mengirim prompt ke AI TANPA ringkasan (percakapan masih baru).", "color: #FFA500;");
         }
 
-        // --- LOGIKA BARU: Gunakan FormData untuk mengirim data ---
         const formData = new FormData();
         formData.append('message', userMessage);
         formData.append('history', JSON.stringify(chatHistory));
@@ -860,261 +764,171 @@ async function getAiResponse(userMessage, fileToSend = null) {
         formData.append('npcs', JSON.stringify(npcData));
         formData.append('summary', currentSummary);
         formData.append('model', selectedModel);
-        if (customApiKey) {
-            formData.append('api_key', customApiKey);
-        }
-        if (fileToSend) {
-            formData.append('image', fileToSend); // Kirim file baru
-        }
-        // Jika tidak ada file baru, cek apakah ada URI LAMA yang tersimpan
+        if (customApiKey) formData.append('api_key', customApiKey);
+        if (fileToSend) formData.append('image', fileToSend);
         else if (activeImageInfo) {
-            console.log('%c📌 Mengirim URI gambar yang sudah ada ke backend...', 'color: #87CEEB', activeImageInfo.uri);
             formData.append('active_image_uri', activeImageInfo.uri);
             formData.append('active_image_mime', activeImageInfo.mime);
         }
-        // https://toukakazou.pythonanywhere.com/chat
-        // http://127.0.0.1:5000/chat
+
         const response = await fetch('/chat', {
             method: 'POST',
-            // JANGAN SET HEADERS 'Content-Type', browser akan otomatis menentukannya untuk FormData
-            body: formData, // Kirim formData langsung
+            body: formData,
             signal: abortController.signal
         });
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let firstChunk = true;
+        let finalReplyText = '';
 
-        console.log("--- MEMULAI STREAMING DARI SERVER ---"); // <-- LOG #1
-        let hasReceivedData = false;
         while (true) {
             const { value, done } = await reader.read();
             if (done) {
-                if (!hasReceivedData) {
-                    // Jika loop selesai tapi tidak ada data sama sekali, ini masalahnya
-                    console.error("Server menutup koneksi tanpa mengirim data apapun.");
-                    indicatorBubble.querySelector('.message-text').innerHTML = `<p style="color: #f04747;">Error: Server tidak merespon.</p>`;
-                }
-                // Hentikan timer saat streaming selesai
                 if (timerInterval) clearInterval(timerInterval);
                 break;
             }
-            hasReceivedData = true;
-            const chunk = decoder.decode(value);
+            const chunk = decoder.decode(value, { stream: true });
             const lines = chunk.split('\n\n');
 
             for (const line of lines) {
                 if (line.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(line.substring(6));
-
-                        // INI KUNCI BARU: Tangani pesan error dari server
-                        if (data.type === 'image_uri') {
-                            console.log('%c📸 URI Gambar Diterima dan Disimpan!', 'color: #fca5b2', data);
-                            activeImageInfo = { uri: data.uri, mime: data.mime };
-                        } else if (data.type === 'error') {
-                            console.error("Error dari Server:", data.content);
-                            // Hapus bubble 'mengetik' yang lama
-                            indicatorBubble.remove();
-                            // Buat bubble error yang baru dan bisa dihapus
-                            createMessageBubble('ai', `Error: ${data.content}`, null, true);
-                            if (timerInterval) clearInterval(timerInterval);
-                            return;
-                        } else if (data.type === 'reply') {
-                            if (firstChunk) {
-                                const messageTextContainer = indicatorBubble.querySelector('.message-text');
-                                if (messageTextContainer) {
-                                    messageTextContainer.innerHTML = '<p></p>';
-                                    replyTextElement = messageTextContainer.querySelector('p');
-                                }
-                                firstChunk = false;
-                            }
-                            if (replyTextElement) {
-                                // Kita panggil fungsi typewriter kita di sini dan tunggu sampai selesai
-                                await typewriterEffect(replyTextElement, data.content, 15); // <-- GANTI DENGAN INI
-                            }
-                        } else if (data.type === 'thought') {
-                            accumulatedThoughts += data.content;
+                    const data = JSON.parse(line.substring(6));
+                    if (data.type === 'image_uri') {
+                        activeImageInfo = { uri: data.uri, mime: data.mime };
+                    } else if (data.type === 'error') {
+                        indicatorBubble.remove();
+                        createMessageBubble('ai', `Error: ${data.content}`, null, true);
+                        if (timerInterval) clearInterval(timerInterval);
+                        return;
+                    } else if (data.type === 'reply') {
+                        if (firstChunk) {
+                            indicatorBubble.querySelector('.message-text').innerHTML = '<p></p>';
+                            replyTextElement = indicatorBubble.querySelector('p');
+                            firstChunk = false;
                         }
-
-                        scrollToBottom();
-
-                    } catch (e) {
-                        console.error("Gagal parse JSON dari server:", e);
+                        if (replyTextElement) {
+                            replyTextElement.textContent += data.content;
+                            finalReplyText += data.content;
+                        }
+                    } else if (data.type === 'thought') {
+                        accumulatedThoughts += data.content;
                     }
+                    scrollToBottom();
                 }
             }
         }
 
-        // Setelah streaming selesai, format teksnya dan tambahkan ikon
-        // ▼▼▼ GANTI BLOK LAMA DENGAN VERSI DEXIE INI ▼▼▼
-
-        // Setelah streaming selesai...
-        // Cek dulu apakah AI memberikan balasan teks
-        if (replyTextElement && replyTextElement.textContent.trim() !== '') {
-            const aiReplyText = replyTextElement.textContent;
-            replyTextElement.style.opacity = '0';
-
-            // Lakukan format markdown
-            formatMarkdown(replyTextElement);
-
-            // Tampilkan lagi dengan transisi
-            setTimeout(() => {
-                replyTextElement.style.transition = 'opacity 0.5s ease';
-                replyTextElement.style.opacity = '1';
-            }, 50);
+        // --- INI BAGIAN BARUNYA: SIMPAN BALASAN AI KE POSTGRESQL ---
+        if (finalReplyText.trim() !== '') {
+            formatMarkdown(replyTextElement); // Format tampilan
             const finalThoughts = accumulatedThoughts.trim();
-            const messageData = {
-                conversation_id: currentConversationId, // <-- PENTING!
-                role: 'model',
-                content: aiReplyText,
-                timestamp: new Date(),
-                thoughts: finalThoughts
-            };
 
-            try {
-                const newId = await db.messages.add(messageData);
-                indicatorBubble.id = `msg-${newId}`;
-                indicatorBubble.dataset.id = newId;
-                chatHistory.push({
-                    id: `msg-${newId}`,
+            const saveResponse = await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    conversation_id: currentConversationId,
                     role: 'model',
-                    parts: [aiReplyText],
-                    thoughts: finalThoughts
-                });
+                    content: finalReplyText,
+                    thoughts: finalThoughts,
+                }),
+            });
+            const saveData = await saveResponse.json();
+            const newDbId = saveData.new_message_id;
+            console.log(`💬 Pesan KARAKTER disimpan ke DB dengan ID: ${newDbId}`);
+            indicatorBubble.id = `msg-${newDbId}`;
+            indicatorBubble.dataset.id = newDbId;
+            chatHistory.push({ id: `msg-${newDbId}`, role: 'model', parts: [finalReplyText] });
 
-                if (finalThoughts) { // Jika ada pikiran...
-                    indicatorBubble.dataset.thoughts = finalThoughts; // Tetap set dataset untuk tampilan instan
-                    addDropdownIcon(indicatorBubble); // Tampilkan ikon '💡'
-                }
-            } catch (error) {
-                console.error("Gagal menyimpan pesan AI ke IndexedDB:", error);
+            if (finalThoughts) {
+                indicatorBubble.dataset.thoughts = finalThoughts;
+                addDropdownIcon(indicatorBubble);
             }
         } else {
-            indicatorBubble.remove();
-        }
-        // ▲▲▲ SELESAI BLOK PENGGANTI ▲▲▲
-
-    } // PASTE KODE INI DI TEMPAT YANG LAMA
-    catch (error) {
-        // Hentikan timer apa pun yang terjadi
-        if (timerInterval) {
-            clearInterval(timerInterval);
+            indicatorBubble.remove(); // Hapus kalo AI gak jawab apa-apa
         }
 
-        // Cek jenis errornya
-        if (error.name === 'AbortError') {
-            // Ini terjadi jika tombol STOP ditekan
-            console.log("Fetch dihentikan oleh pengguna.");
-            if (indicatorBubble) {
-                const messageTextElement = indicatorBubble.querySelector('.message-text p');
-                // Cek apakah AI sudah sempat menghasilkan teks
-                if (messageTextElement && messageTextElement.textContent.trim()) {
-                    // Jika ya, kita finalisasi pesan parsial ini
-                    console.log("Menyimpan respons parsial...");
-                    const partialReply = messageTextElement.textContent;
-                    formatMarkdown(messageTextElement); // Format apa yang sudah ada
-
-                    // Simpan ke DB (ini sama seperti logika di akhir 'try')
-                    const messageData = {
-                        conversation_id: currentConversationId,
-                        role: 'model',
-                        content: partialReply,
-                        timestamp: new Date(),
-                        thoughts: accumulatedThoughts.trim() // Simpan juga thoughts yg sudah ada
-                    };
-
-                    // Kita tidak pakai 'await' di sini karena ini di dalam 'catch'
-                    db.messages.add(messageData).then(newId => {
-                        indicatorBubble.id = `msg-${newId}`;
-                        indicatorBubble.dataset.id = newId;
-                        chatHistory.push({ id: `msg-${newId}`, role: 'model', parts: [partialReply] });
-                        if (messageData.thoughts) {
-                            indicatorBubble.dataset.thoughts = messageData.thoughts;
-                            addDropdownIcon(indicatorBubble);
-                        }
-                    }).catch(dbError => {
-                        console.error("Gagal simpan respons parsial ke DB:", dbError);
-                    });
-
-                } else {
-                    // Jika AI belum menghasilkan teks sama sekali, hapus bubble 'typing'
-                    indicatorBubble.remove();
-                }
-            }
+    } catch (error) {
+        if (timerInterval) clearInterval(timerInterval);
+        if (error.name !== 'AbortError') {
+            console.error("Fetch Error:", error);
+            if (indicatorBubble) indicatorBubble.remove();
+            createMessageBubble('ai', 'Waduh, ada masalah koneksi nih.', null, true);
         } else {
-            // Ini untuk error lain (misal: gagal konek ke server, API key salah, dll)
-            console.error("Fetch Error (bukan Abort):", error);
-            if (indicatorBubble) indicatorBubble.remove(); // Hapus bubble 'typing'
-            createMessageBubble('ai', 'Waduh, ada masalah koneksi nih.', null, true); // Kasih pesan error yang jelas
+            if (indicatorBubble) indicatorBubble.remove();
         }
     }
 }
 
 // Taruh ini di atas atau di bawah fungsi getAiResponse
 
+// GANTI TOTAL FUNGSI INI DI js/script.js
 async function handleSummarization() {
-    // Kita sudah pindahkan SUMMARY_INTERVAL ke atas jadi bisa dihapus dari sini
+    // Cek dulu, jangan-jangan sesi belum ada atau belum waktunya meringkas
+    if (!currentConversationId || chatHistory.length < lastSummaryCount + SUMMARY_INTERVAL) {
+        return;
+    }
 
-    console.log(`Pengecekan ringkasan... Total History: ${chatHistory.length}, Terakhir meringkas di interval: ${lastSummaryCount}`);
+    console.log(`%c🔔 WAKTUNYA MERINGKAS! History mencapai ${chatHistory.length} pesan.`, 'color: #ffc107; font-weight: bold;');
+    const targetSummaryCount = lastSummaryCount + SUMMARY_INTERVAL;
 
-    if (chatHistory.length >= lastSummaryCount + SUMMARY_INTERVAL) {
-        console.log(`%cALARM BERBUNYI! Panjang history (${chatHistory.length}) telah mencapai ambang batas berikutnya. Memulai proses peringkasan...`, 'color: #ffc107; font-weight: bold;');
+    try {
+        // Langkah 1: Selalu ambil ringkasan TERBARU dari server (PostgreSQL).
+        // Ini sumber kebenaran utama kita.
+        console.log("Mengambil ringkasan terbaru dari server...");
+        const sessionInfoResponse = await fetch(`/api/sessions/${currentConversationId}`);
+        if (!sessionInfoResponse.ok) {
+            // Kalau gagal, mending jangan lanjutin, nanti ringkasannya salah.
+            throw new Error("Gagal mengambil info sesi untuk peringkasan.");
+        }
+        const sessionInfo = await sessionInfoResponse.json();
+        const oldSummaryFromServer = sessionInfo.summary || "";
+        console.log("Ringkasan lama dari server berhasil didapat:", oldSummaryFromServer);
 
-        const targetSummaryCount = lastSummaryCount + SUMMARY_INTERVAL;
+        // Ambil potongan history yang mau diringkas dari chatHistory lokal
+        const historyToSummarize = chatHistory.slice(lastSummaryCount, targetSummaryCount);
 
-        try {
-            const currentConvo = await db.conversations.get(currentConversationId);
-            if (!currentConvo) {
-                console.error("Gagal menemukan sesi percakapan saat ini di DB untuk meringkas.");
-                return;
-            }
+        const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
 
-            // Ambil ringkasan LAMA yang sudah ada di database
-            const oldSummary = currentConvo.summary || "";
+        // Langkah 2: Kirim history BARU dan ringkasan LAMA ke endpoint /summarize
+        const summaryResponse = await fetch('/summarize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                history: historyToSummarize,
+                old_summary: oldSummaryFromServer, // Kirim ringkasan dari server
+                api_key: apiSettings.apiKey || null,
+                model: apiSettings.model || 'models/gemini-2.5-flash'
+            }),
+        });
 
-            // Ambil hanya chat baru yang perlu diringkas
-            const historyToSummarize = chatHistory.slice(lastSummaryCount, targetSummaryCount);
+        if (!summaryResponse.ok) {
+            throw new Error("Endpoint /summarize mengembalikan error.");
+        }
 
-            console.log(`Mengirim ${historyToSummarize.length} pesan untuk diringkas (dari indeks ${lastSummaryCount} sampai ${targetSummaryCount})`);
+        const data = await summaryResponse.json();
+        const finalUpdatedSummary = data.summary;
 
-            const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
-
-            const response = await fetch('/summarize', {
+        // Langkah 3: Jika ada ringkasan baru yang sudah digabung, KIRIM BALIK ke server untuk disimpan.
+        if (finalUpdatedSummary) {
+            await fetch(`/api/sessions/${currentConversationId}/summary`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    history: historyToSummarize,
-                    old_summary: oldSummary, // <-- KIRIM RINGKASAN LAMA KE BACKEND
-                    api_key: apiSettings.apiKey || null,
-                    model: apiSettings.model || 'models/gemini-2.5-flash-latest'
-                }),
+                body: JSON.stringify({ summary: finalUpdatedSummary })
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Gagal mendapatkan respon dari server peringkasan.');
-            }
-            lastSummaryCount = targetSummaryCount;
-            console.log(`%cProses peringkasan untuk blok ini selesai. Counter sekarang di: ${lastSummaryCount}`, 'color: #43b581; font-weight: bold;');
-
-            const data = await response.json();
-            const updatedSummaryFromServer = data.summary; // Ini adalah ringkasan LAMA + BARU dari server
-
-            if (updatedSummaryFromServer) {
-                await db.conversations.update(currentConversationId, { summary: updatedSummaryFromServer });
-                console.log(`%cRingkasan baru dari server berhasil disimpan ke DB.`, 'color: #87CEEB;');
-            } else {
-                // Log ini hanya untuk informasi, tidak mempengaruhi alur.
-                console.log("Tidak ada konten ringkasan baru yang diterima dari server untuk disimpan.");
-            }
-        } catch (error) {
-            console.error("Error selama proses handleSummarization:", error);
-            // JANGAN update counter jika gagal, agar bisa dicoba lagi nanti.
+            console.log(`✅ Ringkasan baru berhasil dikirim dan disimpan permanen di server.`);
         }
+
+        // Update counter lokal kita HANYA jika semua proses di atas berhasil.
+        lastSummaryCount = targetSummaryCount;
+
+    } catch (error) {
+        console.error("Error selama proses handleSummarization:", error);
     }
 }
 
+// GANTI TOTAL FUNGSI sendMessage DENGAN INI
 async function sendMessage(fileToResend = null) {
     const messageText = inputArea.value.trim();
     const imageFile = fileToResend || selectedFile;
@@ -1122,7 +936,6 @@ async function sendMessage(fileToResend = null) {
     if (!messageText && !imageFile) return;
     if (isReplying) return;
 
-    // --- Persiapan awal ---
     isReplying = true;
     abortController = new AbortController();
     sendButton.classList.add('is-stopping');
@@ -1133,63 +946,70 @@ async function sendMessage(fileToResend = null) {
     selectedFile = null;
     inputArea.focus();
 
-    // --- Ubah gambar ke Base64 (jika ada) ---
-    let imageDataBase64 = null;
+    // Kita buat ID sementara untuk bubble di layar, nanti di-update
+    const tempId = `msg-temp-${Date.now()}`;
+    const userBubble = createMessageBubble('user', messageText, tempId);
+
+    // Logika untuk menampilkan gambar (jika ada) di bubble
+    let imageDataForApi = null;
     if (imageFile) {
         try {
-            imageDataBase64 = await fileToBase64(imageFile);
+            const base64Image = await fileToBase64(imageFile);
+            imageDataForApi = base64Image; // Ini yang akan dikirim ke API
+            const imageElement = document.createElement('img');
+            imageElement.src = base64Image;
+            imageElement.className = 'sent-image';
+            userBubble.querySelector('.message-text').insertBefore(imageElement, userBubble.querySelector('.message-text p'));
         } catch (error) {
-            console.error("Gagal mengubah gambar ke Base64:", error);
-            // Tampilkan error ke pengguna jika perlu
+            console.error("Gagal proses gambar:", error);
+            userBubble.remove(); // Hapus bubble jika gambar gagal diproses
             isReplying = false; // Buka kunci lagi
             sendButton.classList.remove('is-stopping');
             return;
         }
     }
 
-    // --- Simpan pesan ke DB (sekarang dengan data gambar) ---
-    const messageData = {
-        conversation_id: currentConversationId,
-        role: 'user',
-        content: messageText,
-        timestamp: new Date(),
-        imageData: imageDataBase64 // <-- SIMPAN GAMBAR DI SINI
-    };
-    const newDbId = await db.messages.add(messageData);
-    const messageIdString = `msg-${newDbId}`;
-
-    // --- Tampilkan bubble di layar ---
-    const userBubble = createMessageBubble('user', messageText, messageIdString);
-    userBubble.id = messageIdString; // Pastikan ID-nya benar
-    userBubble.dataset.id = newDbId;
-    const messageTextContainer = userBubble.querySelector('.message-text');
-
-    if (imageDataBase64) {
-        const imageElement = document.createElement('img');
-        imageElement.src = imageDataBase64; // Langsung pakai data Base64
-        imageElement.className = 'sent-image';
-        messageTextContainer.insertBefore(imageElement, messageTextContainer.firstChild);
-    }
-
-    // Format atau sembunyikan teks
-    if (!messageText && imageFile) {
-        const pElement = messageTextContainer.querySelector('p');
-        if (pElement) pElement.style.display = 'none';
-    } else {
-        formatMarkdown(messageTextContainer.querySelector('p'));
-    }
-
+    formatMarkdown(userBubble.querySelector('.message-text p'));
     scrollToBottom();
-    chatHistory.push({ id: messageIdString, role: 'user', parts: [messageText] });
+    chatHistory.push({ id: tempId, role: 'user', parts: [messageText] });
 
-    // --- Panggil AI ---
     try {
+        // --- INI BAGIAN BARUNYA: SIMPAN KE POSTGRESQL ---
+        const response = await fetch('/api/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                conversation_id: currentConversationId,
+                role: 'user',
+                content: messageText,
+                imageData: imageDataForApi // Kirim data gambar base64
+            }),
+        });
+
+        if (!response.ok) throw new Error("Gagal menyimpan pesan user ke server.");
+
+        const data = await response.json();
+        const newDbId = data.new_message_id; // ID asli dari PostgreSQL
+
+        // Update ID bubble dan history array dengan ID yang benar
+        const newIdString = `msg-${newDbId}`;
+        userBubble.id = newIdString;
+        userBubble.dataset.id = newDbId;
+        const msgIndex = chatHistory.findIndex(msg => msg.id === tempId);
+        if (msgIndex > -1) chatHistory[msgIndex].id = newIdString;
+
+        console.log(`Pesan disimpan ke DB dengan ID: ${newDbId}`);
+
+        // Panggil AI setelah pesan user berhasil tersimpan
         await getAiResponse(messageText, imageFile);
         await handleSummarization();
+
     } catch (error) {
         if (error.name !== 'AbortError') {
             console.error("Error fatal saat kirim pesan:", error);
-            userBubble.remove();
+            // Ganti teks bubble jadi pesan error
+            userBubble.querySelector('.message-text p').textContent = "Gagal terkirim. Klik Resend.";
+            userBubble.classList.add('error-message');
         }
     } finally {
         isReplying = false;
@@ -1202,7 +1022,13 @@ async function sendMessage(fileToResend = null) {
 
 // HANYA ADA SATU BLOK INI DI SELURUH FILE
 document.addEventListener('DOMContentLoaded', () => {
-
+    const backToSessionsButton = document.querySelector('.back-button');
+    if (backToSessionsButton) {
+        backToSessionsButton.addEventListener('click', () => {
+            // Arahkan ke halaman daftar sesi
+            window.location.href = 'sessions.html';
+        });
+    }
     if (!document.querySelector('.chat-container')) return;
 
     // --- SETUP AWAL HALAMAN CHAT ---
@@ -1357,31 +1183,52 @@ document.addEventListener('DOMContentLoaded', () => {
         const messageId = messageBubble.dataset.id;
         const messageIdString = `msg-${messageId}`;
 
-        // Hapus pesan
-        // GANTI TOTAL BLOK 'delete' INI
+        // GANTI BLOK 'delete' INI di dalam event listener 'click'
         if (target.classList.contains('delete')) {
             dropdown.classList.add('hidden');
+            if (confirm('Yakin ingin menghapus pesan ini beserta semua balasan AI setelahnya?')) {
+                const messageDbId = parseInt(messageBubble.dataset.id);
+                if (isNaN(messageDbId)) return;
 
-            // Cek apakah ini pesan error atau pesan biasa
-            if (messageBubble.classList.contains('error-message')) {
-                // Jika pesan error, langsung hapus dari tampilan
-                if (confirm('Yakin ingin menghapus pesan error ini?')) {
-                    messageBubble.remove();
-                }
-            } else {
-                // Jika pesan biasa, hapus dari DB dan tampilan
-                if (confirm('Yakin ingin menghapus pesan ini?')) {
-                    try {
-                        const messageId = parseInt(messageBubble.dataset.id);
-                        if (!isNaN(messageId)) { // Pastikan ID adalah angka
-                            await db.messages.delete(messageId);
-                        }
-                        messageBubble.remove();
-                        const index = chatHistory.findIndex(msg => msg.id === messageIdString);
-                        if (index > -1) chatHistory.splice(index, 1);
-                    } catch (error) {
-                        console.error("Gagal hapus pesan dari DB:", error);
+                // Kunci #1: Kumpulin dulu semua ID yang mau dihapus.
+                // Gak cuma pesan ini, tapi semua pesan setelah ini juga!
+                const idsToDelete = [messageDbId];
+                const bubblesToDelete = [messageBubble];
+                let currentBubble = messageBubble;
+
+                while (currentBubble.nextElementSibling) {
+                    currentBubble = currentBubble.nextElementSibling;
+                    const nextId = parseInt(currentBubble.dataset.id);
+                    if (!isNaN(nextId)) {
+                        idsToDelete.push(nextId);
                     }
+                    bubblesToDelete.push(currentBubble);
+                }
+
+                console.log("Meminta penghapusan untuk ID:", idsToDelete);
+
+                try {
+                    // Kunci #2: Panggil API dan TUNGGU (await) sampai selesai.
+                    const response = await fetch(`/api/messages/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ids: idsToDelete }) // Kirim semua ID sekaligus
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Server menolak permintaan hapus.');
+                    }
+
+                    // Kunci #3: Setelah server konfirmasi OK, BARU hapus dari layar dan history lokal.
+                    bubblesToDelete.forEach(bubble => bubble.remove());
+                    const idSetToDelete = new Set(idsToDelete.map(id => `msg-${id}`));
+                    chatHistory = chatHistory.filter(msg => !idSetToDelete.has(msg.id));
+
+                    console.log("Penghapusan berhasil di server dan UI.");
+
+                } catch (error) {
+                    console.error("Gagal hapus pesan via API:", error);
+                    alert("Gagal menghapus pesan. Cek konsol untuk detail.");
                 }
             }
         }
@@ -1395,124 +1242,88 @@ document.addEventListener('DOMContentLoaded', () => {
         // Edit pesan
         if (target.classList.contains('edit')) {
             dropdown.classList.add('hidden');
-            // CEK DULU: Apakah sudah ada area edit di dalam bubble ini?
-            if (messageBubble.querySelector('.edit-area')) {
-                messageBubble.classList.add('is-editing');
-                console.log("Mode edit sudah aktif, tidak melakukan apa-apa.");
-                return; // Jika sudah ada, langsung hentikan fungsi.
-            }
-            enterEditMode(messageBubble);
+            messageBubble.classList.add('is-editing');
+            enterEditMode(messageBubble); // Fungsi ini akan menampilkan textarea dan tombol simpan
         }
 
-        // Regenerate
+        // GANTI BLOK REGENERATE DENGAN VERSI FINAL INI
         if (target.classList.contains('regenerate')) {
             dropdown.classList.add('hidden');
-            try {
-                // Hapus pesan AI dari DB dan tampilan
-                await db.messages.delete(parseInt(messageId));
-                messageBubble.remove();
+            if (isReplying) return; // Jangan lakukan apa-apa kalo lagi nunggu balasan
 
-                // Hapus dari history lokal
-                const messageIndex = chatHistory.findIndex(msg => msg.id === messageIdString);
-                if (messageIndex > -1) {
-                    chatHistory.splice(messageIndex, 1);
-                }
+            const aiMessageBubble = messageBubble;
+            const aiMessageId = parseInt(aiMessageBubble.dataset.id);
 
-                // Cari pesan user terakhir sebelum pesan AI ini sebagai pemicu
-                let triggerMessage = "";
-                // Kita mulai dari index pesan AI yang dihapus, lalu mundur ke belakang
+            // Cari pesan user SEBELUM pesan AI ini. Itulah pemicunya.
+            const messageIndex = chatHistory.findIndex(msg => msg.id === `msg-${aiMessageId}`);
+            let triggerMessage = "";
+            let triggerImageFile = null; // Siapin buat kalo ada gambar
+            if (messageIndex > -1) {
+                // Loop mundur dari posisi AI untuk nemuin 'user' message terakhir
                 for (let i = messageIndex - 1; i >= 0; i--) {
                     if (chatHistory[i].role === 'user') {
                         triggerMessage = chatHistory[i].parts[0];
-                        break; // Ketemu, langsung berhenti
-                    }
-                }
-
-                if (triggerMessage) {
-                    console.log("Memicu regenerate dengan pesan:", triggerMessage);
-
-                    // ▼▼▼ TAMBAHKAN LOGIKA STOP DI SINI ▼▼▼
-                    isReplying = true;
-                    abortController = new AbortController();
-                    sendButton.classList.add('is-stopping');
-                    sendButton.title = 'Hentikan';
-
-                    try {
-                        await getAiResponse(triggerMessage);
-                        // Regenerate biasanya nggak perlu summary, tapi jika perlu bisa ditambah
-                    } catch (error) {
-                        if (error.name !== 'AbortError') {
-                            console.error("Error fatal saat regenerate:", error);
+                        // Cek juga apakah pesan pemicu itu ada gambarnya
+                        const triggerBubble = document.getElementById(chatHistory[i].id);
+                        const imgElement = triggerBubble.querySelector('.sent-image');
+                        if (imgElement) {
+                            // Jika ada gambar, kita "buat ulang" file-nya dari data base64
+                            const response = await fetch(imgElement.src);
+                            const blob = await response.blob();
+                            triggerImageFile = new File([blob], "regenerate_image.png", { type: blob.type });
                         }
-                    } finally {
-                        isReplying = false;
-                        sendButton.classList.remove('is-stopping');
-                        sendButton.title = 'Kirim';
+                        break; // Ketemu, stop loop
                     }
-                    // ▲▲▲ SELESAI PENAMBAHAN ▲▲▲
-
-                } else {
-                    console.error("Tidak ditemukan pesan user sebelumnya untuk me-regenerate.");
                 }
+            }
 
-            } catch (error) { console.error("Gagal saat regenerate:", error); }
-        }
-
-        // Kirim ulang
-        // MODIFIKASI BLOK INI
-        if (target.classList.contains('resend')) {
-            dropdown.classList.add('hidden');
-            const messageId = parseInt(messageBubble.dataset.id);
-            if (!messageId) return;
+            if (!triggerMessage && !triggerImageFile) {
+                alert("Gagal me-regenerate: Pesan pemicu dari user tidak ditemukan.");
+                return;
+            }
 
             try {
-                // ... (ambil data dari DB) ...
-                const messageToResend = await db.messages.get(messageId);
-                if (!messageToResend) {
-                    alert("Tidak bisa menemukan data pesan untuk dikirim ulang.");
-                    return;
-                }
-                const originalMessageText = messageToResend.content;
-                const originalImageData = messageToResend.imageData;
+                isReplying = true;
+                abortController = new AbortController();
+                sendButton.classList.add('is-stopping');
+                sendButton.title = 'Hentikan';
 
-                // ... (hapus pesan lama) ...
-                const bubblesToDelete = [messageBubble];
-                const dbIdsToDelete = [messageId];
-                const historyIdsToDelete = new Set([messageBubble.id]);
-                const nextBubble = messageBubble.nextElementSibling;
-                if (nextBubble && nextBubble.classList.contains('ai-message')) {
-                    bubblesToDelete.push(nextBubble);
-                    if (nextBubble.dataset.id) {
-                        dbIdsToDelete.push(parseInt(nextBubble.dataset.id));
-                        historyIdsToDelete.add(nextBubble.id);
-                    }
-                }
-                if (dbIdsToDelete.length > 0) await db.messages.bulkDelete(dbIdsToDelete);
-                bubblesToDelete.forEach(bubble => bubble.remove());
-                chatHistory = chatHistory.filter(msg => !historyIdsToDelete.has(msg.id));
+                // Langkah 1: Minta server HAPUS pesan AI yang lama. TUNGGU.
+                await fetch(`/api/messages/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: [aiMessageId] })
+                });
 
-                // --- BAGIAN YANG DIPERBAIKI ---
-                inputArea.value = originalMessageText;
-                let fileToPass = null; // Gunakan nama variabel baru biar jelas
+                // Langkah 2: Setelah dikonfirmasi server, HAPUS dari layar & history lokal.
+                aiMessageBubble.remove();
+                chatHistory.splice(messageIndex, 1);
 
-                if (originalImageData) {
-                    const response = await fetch(originalImageData);
-                    const blob = await response.blob();
-                    // Isi variabel fileToPass dengan file yang dibuat ulang
-                    fileToPass = new File([blob], "resend_image.jpg", { type: blob.type });
+                console.log(`Regenerate: Pesan AI lama (ID: ${aiMessageId}) dihapus. Meminta balasan baru untuk: "${triggerMessage}"`);
 
-                    // Tampilkan preview
-                    imagePreview.src = originalImageData;
-                    imagePreviewContainer.classList.remove('hidden');
-                }
-
-                // Panggil sendMessage() dengan membawa file (atau null jika tidak ada)
-                sendMessage(fileToPass); // <-- KIRIM VARIABEL BARU INI
+                // Langkah 3: BARU panggil AI lagi dengan pemicu yang sama.
+                await getAiResponse(triggerMessage, triggerImageFile);
 
             } catch (error) {
-                console.error("Gagal saat proses kirim ulang:", error);
-                alert("Terjadi kesalahan saat mencoba mengirim ulang pesan.");
+                if (error.name !== 'AbortError') {
+                    console.error("Error saat regenerate:", error);
+                    alert("Terjadi masalah saat me-regenerate.");
+                }
+            } finally {
+                // Langkah 4: Apapun yang terjadi, balikin tombol send ke kondisi normal.
+                isReplying = false;
+                sendButton.classList.remove('is-stopping');
+                sendButton.title = 'Kirim';
             }
+        }
+
+        if (target.classList.contains('resend')) {
+            dropdown.classList.add('hidden');
+            if (isReplying) return;
+
+            // Ambil teks asli dari bubble
+            const originalText = convertHtmlToMarkdown(messageBubble.querySelector('.message-text p').innerHTML);
+            await exitEditMode(messageBubble, originalText);
         }
     });
     uploadButton.addEventListener('click', () => {

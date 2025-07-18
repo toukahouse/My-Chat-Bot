@@ -379,15 +379,18 @@ body {
 
 
 .action-text {
-    color: #b9bbbe; /* Warna sedikit lebih redup */
+    color: #b9bbbe;
+    /* Warna sedikit lebih redup */
     font-style: italic;
 }
+
 /* Taruh ini di bawah selector .action-text */
 
 .dialog-italic {
     font-style: italic;
     /* Biarkan warnanya ikut warna teks paragraf induk (putih) */
 }
+
 /* ======================================================= */
 /* ===== BAGIAN INDIKATOR MENGETIK (VERSI FINAL) ===== */
 /* ======================================================= */
@@ -1359,18 +1362,25 @@ a.card-link-wrapper {
 /* GANTI ATURAN LAMA DENGAN INI */
 .card-image-container {
     width: 100%;
-    /* Kita TIDAK pakai padding-top lagi di sini */
+    padding-top: 56.25%;
+    /* INI KUNCI UTAMA: Aspect Ratio 16:9 (9 / 16 = 0.5625) */
+    position: relative;
+    /* Wajib ada untuk memposisikan gambar di dalamnya */
+    background-color: #202225;
+    /* Warna fallback kalo gambar lama loading */
+    overflow: hidden;
+    /* Pastikan gambar tidak keluar dari wadah */
 }
 
 .card-image {
+    position: absolute;
+    /* Tempel di dalam .card-image-container */
+    top: 0;
+    left: 0;
     width: 100%;
-    /* Penuhi lebar wadahnya */
-    height: auto;
-    /* Biarkan tinggi menyesuaikan secara otomatis sesuai rasio asli gambar */
-    max-height: 250px;
-    /* BATAS TINGGI MAKSIMAL, ini kuncinya biar gak kegedean */
+    height: 100%;
     object-fit: cover;
-    /* Tetap pakai ini, ini yang bikin gambar pas dan gak penyok */
+    /* INI KUNCI KEDUA: Paksa gambar mengisi wadah tanpa penyok, sisanya di-crop */
     display: block;
     /* Mencegah space aneh di bawah gambar */
 }
