@@ -883,9 +883,11 @@ body {
 }
 
 /* 2. Beri lebar minimum pada area edit */
+/* 2. Atur lebar area edit agar fleksibel */
 .message.is-editing .edit-area {
-    min-width: 600px;
-    /* Atur lebar minimal, sesuaikan angkanya jika perlu */
+    width: 60vw; /* Lebarnya 60% dari lebar viewport/layar */
+    max-width: 650px; /* Lebar maksimal 650px (untuk layar besar) */
+    min-width: 250px; /* Lebar minimal 250px (untuk layar kecil) */
 }
 
 .message-text .edit-area textarea:focus {
