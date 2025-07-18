@@ -24,70 +24,128 @@ const SUMMARY_INTERVAL = 10;
 let activeImageInfo = null;// <-- TAMBAHKAN INI
 const sentImageFiles = new Map();
 
-// GANTI TOTAL FUNGSI INI DI js/script.js
+// ▼▼▼ TARUH KODE INI DI BAWAH DEKLARASI VARIABEL GLOBAL DI ATAS ▼▼▼
+
+function savePendingImageToStorage(base64Image) {
+    // Hanya simpan jika ada sesi aktif, biar datanya gak nyampur
+    if (!currentConversationId) return;
+    try {
+        // Simpan gambar (dalam format teks base64) ke laci.
+        // Kuncinya pake ID sesi, contoh: 'pendingImage_1'
+        localStorage.setItem(`pendingImage_${currentConversationId}`, base64Image);
+        console.log(`🖼️ Gambar di input box untuk sesi ${currentConversationId} berhasil disimpan ke 'laci'.`);
+    } catch (e) {
+        // Ini jarang terjadi, tapi bagus untuk jaga-jaga kalau laci kepenuhan.
+        console.error("Gagal menyimpan gambar ke localStorage:", e);
+    }
+}
+
+function loadPendingImageFromStorage() {
+    // Ambil gambar dari laci pake kunci yang sama
+    if (!currentConversationId) return null;
+    const base64Image = localStorage.getItem(`pendingImage_${currentConversationId}`);
+    if (base64Image) {
+        console.log(`🖼️ Menemukan gambar di 'laci' untuk sesi ${currentConversationId}.`);
+    }
+    return base64Image;
+}
+
+function clearPendingImageFromStorage() {
+    // Bersihkan laci setelah gambar berhasil dikirim
+    if (!currentConversationId) return;
+    localStorage.removeItem(`pendingImage_${currentConversationId}`);
+    console.log(`🖼️ 'Laci' gambar untuk sesi ${currentConversationId} sudah dibersihkan.`);
+}
+
+// ▲▲▲ SELESAI BAGIAN 1 ▲▲▲
+
+// GANTI TOTAL FUNGSI loadChatHistory DENGAN VERSI INI
 async function loadChatHistory() {
-    // KUNCI UTAMA: BERSIHKAN SEMUANYA DULU!
     chatMessages.innerHTML = '';
     chatHistory = [];
     currentConversationId = null;
     activeImageInfo = null;
 
-    // Ambil ID sesi dari URL
     const urlParams = new URLSearchParams(window.location.search);
     const sessionIdFromUrl = urlParams.get('session_id');
 
     if (sessionIdFromUrl && !isNaN(sessionIdFromUrl)) {
         currentConversationId = parseInt(sessionIdFromUrl);
         localStorage.setItem('lastActiveSessionId', currentConversationId);
-
         console.log(`Mencoba memuat sesi dari server. ID: ${currentConversationId}`);
+
         try {
             const response = await fetch(`/api/sessions/${currentConversationId}/messages`);
             if (!response.ok) {
-                // Tampilkan pesan error yang lebih spesifik jika sesi tidak ditemukan
-                chatMessages.innerHTML = `<p class="error-message">Gagal memuat sesi chat. Mungkin sesi ini sudah dihapus atau ID tidak valid.</p>`;
-                return; // Hentikan fungsi di sini
+                chatMessages.innerHTML = `<p class="error-message">Gagal memuat sesi. Mungkin sudah dihapus.</p>`;
+                return;
             }
             const data = await response.json();
             const messagesFromServer = data.messages;
 
-            // Loop dan isi ulang chat dari data server
+            // KUNCI UTAMA ADA DI SINI
             for (const msg of messagesFromServer) {
+                // Buat bubble dulu
                 const bubble = createMessageBubble(msg.role, msg.content, `msg-${msg.db_id}`);
-                // ... (logika untuk gambar, thoughts, dll)
-                formatMarkdown(bubble.querySelector('.message-text p'));
+                const messageTextContainer = bubble.querySelector('.message-text');
+
+                // CEK APAKAH PESAN INI PUNYA GAMBAR
+                if (msg.imageData) {
+                    const imageElement = document.createElement('img');
+                    imageElement.src = msg.imageData; // Langsung pakai data base64 dari DB
+                    imageElement.className = 'sent-image';
+                    // Taruh gambar di atas teks
+                    messageTextContainer.insertBefore(imageElement, messageTextContainer.firstChild);
+                }
+
+                // Jika pesan tidak ada teks (hanya gambar), sembunyikan elemen <p>
+                if (!msg.content && msg.imageData) {
+                    const pElement = messageTextContainer.querySelector('p');
+                    if (pElement) pElement.style.display = 'none';
+                }
+
+                formatMarkdown(messageTextContainer.querySelector('p'));
+
+                // Simpan ke history lokal untuk AI
                 chatHistory.push({
                     id: `msg-${msg.db_id}`,
                     role: msg.role,
                     parts: [msg.content]
+                    // Kita tidak perlu simpan gambar di chatHistory, karena AI dapat dari FormData
                 });
             }
 
-            // Jika tidak ada pesan sama sekali (sesi baru), tampilkan sapaan
             if (messagesFromServer.length === 0 && data.greeting) {
-                setTimeout(() => {
-                    displayGreeting(data.greeting);
-                }, 100);
+                setTimeout(() => displayGreeting(data.greeting), 100);
             }
 
             lastSummaryCount = Math.floor(chatHistory.length / SUMMARY_INTERVAL) * SUMMARY_INTERVAL;
 
         } catch (error) {
             console.error("Gagal memuat history dari server:", error);
-            chatMessages.innerHTML = `<p class="error-message">Terjadi masalah saat mengambil data. Cek koneksi internet dan coba lagi.</p>`;
+            chatMessages.innerHTML = `<p class="error-message">Masalah saat ambil data. Cek koneksi.</p>`;
         }
     } else {
-        // Jika tidak ada session_id yang valid di URL, JANGAN LAKUKAN APA-APA.
-        // Biarkan halaman chat tetap kosong.
-        console.log("Tidak ada session_id yang valid. Menampilkan halaman chat kosong.");
+        console.log("Tidak ada session_id valid. Menampilkan halaman kosong.");
+    }
+    const pendingImage = loadPendingImageFromStorage();
+    if (pendingImage) {
+        // Jika ada gambar di laci, kita tampilkan lagi di preview input box
+        imagePreview.src = pendingImage;
+        imagePreviewContainer.classList.remove('hidden');
+
+        // Kita juga perlu "membangun ulang" objek File dari data base64
+        // agar siap untuk dikirim saat tombol send ditekan.
+        try {
+            const response = await fetch(pendingImage);
+            const blob = await response.blob();
+            selectedFile = new File([blob], "restored_image.png", { type: blob.type });
+        } catch (e) {
+            console.error("Gagal membangun ulang file dari gambar di laci", e);
+        }
     }
     scrollToBottom();
 }
-
-// --- DI DALAM script.js ---
-
-// TAMBAHKAN FUNGSI BARU INI (TARUH DI BAWAH loadChatHistory):
-// GANTI TOTAL FUNGSI LAMA DENGAN INI di js/script.js
 
 async function startNewConversation() {
     try {
@@ -159,7 +217,9 @@ async function displayGreeting(greetingText) {
         });
         const data = await response.json();
         const newDbId = data.new_message_id;
-
+        if (imageDataForApi) {
+            clearPendingImageFromStorage();
+        }
         // Update ID bubble dan history array dengan ID dari database
         greetingBubble.id = `msg-${newDbId}`;
         chatHistory.push({ id: `msg-${newDbId}`, role: 'model', parts: [greetingText] });
@@ -317,12 +377,9 @@ function enterEditMode(messageBubble) {
     });
 }
 
-// GANTI SELURUH FUNGSI INI
-// GANTI TOTAL FUNGSI INI
-// GANTI TOTAL FUNGSI EDIT DENGAN VERSI FINAL INI
-// GANTI TOTAL FUNGSI EDIT DENGAN VERSI SUPER INI
+
+// GANTI LAGI FUNGSI exitEditMode DENGAN VERSI FINAL INI
 async function exitEditMode(messageBubble, newText) {
-    // Sembunyikan area edit dulu, apapun yang terjadi
     const editArea = messageBubble.querySelector('.edit-area');
     if (editArea) {
         messageBubble.classList.remove('is-editing');
@@ -337,13 +394,15 @@ async function exitEditMode(messageBubble, newText) {
         return;
     }
 
-    // Cek apakah pesan user punya gambar
+    // KUNCI BARU: Cek apakah di bubble ini ada gambar yang sudah ada
     let imageFileToResend = null;
-    const imgElement = messageBubble.querySelector('.sent-image');
-    if (imgElement) {
-        const response = await fetch(imgElement.src);
+    const existingImageElement = messageBubble.querySelector('.sent-image');
+    if (existingImageElement) {
+        console.log("Gambar lama terdeteksi, akan dikirim ulang.");
+        // "Bangun ulang" File object dari data base64 yang ada di src gambar
+        const response = await fetch(existingImageElement.src);
         const blob = await response.blob();
-        imageFileToResend = new File([blob], "edited_image.png", { type: blob.type });
+        imageFileToResend = new File([blob], "resend_image.png", { type: blob.type });
     }
 
     try {
@@ -351,35 +410,24 @@ async function exitEditMode(messageBubble, newText) {
         abortController = new AbortController();
         sendButton.classList.add('is-stopping');
         sendButton.title = 'Hentikan';
-
-        // Langkah 1: Minta backend buat UPDATE pesan user dan HAPUS semua pesan setelahnya.
-        // Endpoint /update kamu di app.py udah pinter, dia ngelakuin 2 hal ini sekaligus.
-        console.log(`Meminta server untuk update pesan ID ${messageDbId} dan menghapus history setelahnya.`);
-        const updateResponse = await fetch(`/api/messages/${messageDbId}/update`, {
+        await fetch(`/api/messages/${messageDbId}/update`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: newText })
         });
 
-        if (!updateResponse.ok) {
-            throw new Error("Server gagal mengupdate pesan.");
-        }
-
         console.log("Update di server berhasil. Memuat ulang history chat untuk sinkronisasi...");
-
-        // Langkah 2: MUAT ULANG seluruh history chat dari server.
-        // Ini cara paling anti-gagal buat mastiin tampilan di layar 100% sama kayak di database.
         await loadChatHistory();
 
-        // Langkah 3: Setelah history bersih dan sinkron, BARU minta respons AI baru.
-        console.log("History sinkron. Meminta respons AI baru...");
+        // Langkah 3: Minta respons AI baru dengan teks yang sudah diedit DAN gambar yang tadi kita simpan.
+        console.log("History sinkron. Meminta respons AI baru dengan gambar (jika ada)...");
         await getAiResponse(newText, imageFileToResend);
 
     } catch (error) {
         if (error.name !== 'AbortError') {
             console.error("Gagal total saat proses edit/resend:", error);
             alert("Terjadi kesalahan. Silakan coba lagi.");
-            await loadChatHistory(); // Kalau gagal, coba muat ulang lagi biar gak aneh
+            await loadChatHistory();
         }
     } finally {
         isReplying = false;
@@ -387,7 +435,6 @@ async function exitEditMode(messageBubble, newText) {
         sendButton.title = 'Kirim';
     }
 }
-// ▲▲▲ SELESAI KUMPULAN FUNGSI BARU ▲▲▲
 
 // Fungsi untuk membuat gelembung animasi 'mengetik...'
 function createTypingIndicator() {
@@ -1096,37 +1143,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    inputArea.addEventListener('paste', (event) => {
-        // Cek data yang ada di clipboard
+    // MODIFIKASI event listener 'paste' ini
+    inputArea.addEventListener('paste', async (event) => { // Tambahkan async
         const items = (event.clipboardData || window.clipboardData).items;
         let imageFile = null;
-
-        // Loop untuk cari item yang merupakan file gambar
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
                 imageFile = items[i].getAsFile();
-                break; // Ketemu, langsung hentikan loop
+                break;
             }
         }
 
-        // Kalau gambar ditemukan...
         if (imageFile) {
-            console.log('Gambar dari clipboard terdeteksi!', imageFile);
-
-            // Hentikan aksi default browser (biar nggak nempel nama file di textarea)
             event.preventDefault();
-
-            // Set file yang kita temukan ke variabel global 'selectedFile'
-            // biar fungsi sendMessage() bisa ngambil dari sini
             selectedFile = imageFile;
-
-            // Gunakan FileReader untuk membaca file dan menampilkannya di preview
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                imagePreview.src = e.target.result;
+            try {
+                const base64 = await fileToBase64(imageFile); // Tambahkan await
+                imagePreview.src = base64;
                 imagePreviewContainer.classList.remove('hidden');
-            };
-            reader.readAsDataURL(imageFile);
+                // INI KUNCINYA: Simpan ke laci
+                savePendingImageToStorage(base64);
+            } catch (error) {
+                console.error("Gagal memproses gambar dari paste:", error);
+            }
         }
     });
 
@@ -1330,16 +1369,20 @@ document.addEventListener('DOMContentLoaded', () => {
         imageUploadInput.click(); // Picu input file yang tersembunyi
     });
 
-    imageUploadInput.addEventListener('change', (event) => {
+    // MODIFIKASI event listener 'change' ini
+    imageUploadInput.addEventListener('change', async (event) => { // Tambahkan async
         const file = event.target.files[0];
         if (file) {
             selectedFile = file;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                imagePreview.src = e.target.result;
+            try {
+                const base64 = await fileToBase64(file); // Tambahkan await
+                imagePreview.src = base64;
                 imagePreviewContainer.classList.remove('hidden');
-            };
-            reader.readAsDataURL(file);
+                // INI KUNCINYA: Simpan ke laci
+                savePendingImageToStorage(base64);
+            } catch (error) {
+                console.error("Gagal memproses gambar untuk preview:", error);
+            }
         }
     });
 
@@ -1348,6 +1391,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeImageInfo = null;
         imageUploadInput.value = ''; // Reset input file
         imagePreviewContainer.classList.add('hidden');
+        clearPendingImageFromStorage();
     });
 
     // Listener untuk menutup semua dropdown jika klik di luar
