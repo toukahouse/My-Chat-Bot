@@ -18,14 +18,28 @@ let chatHistory = [];
 let abortController = new AbortController();
 let currentConversationId = null;
 let isReplying = false;
-let lastSummaryCount = 0;
+// let lastSummaryCount = 0;
 let selectedFile = null;
+// let isSummarizing = false;
 const SUMMARY_INTERVAL = 10;
-let activeImageInfo = null;// <-- TAMBAHKAN INI
+// let activeImageInfo = null;// <-- TAMBAHKAN INI
+
+// --- FUNGSI BARU: Manajer Status Tombol Kirim ---
+// GANTI TOTAL FUNGSI updateSendButtonState DENGAN INI
+function updateSendButtonState() {
+    if (isReplying) {
+        sendButton.classList.add('is-disabled');
+        sendButton.title = 'Hentikan';
+        sendButton.classList.add('is-stopping');
+    } else {
+        sendButton.classList.remove('is-disabled');
+        sendButton.classList.remove('is-stopping');
+        sendButton.title = 'Kirim';
+    }
+}
+
 const sentImageFiles = new Map();
-
-// ▼▼▼ TARUH KODE INI DI BAWAH DEKLARASI VARIABEL GLOBAL DI ATAS ▼▼▼
-
+// --- SELESAI FUNGSI BARU ---
 function savePendingImageToStorage(base64Image) {
     // Hanya simpan jika ada sesi aktif, biar datanya gak nyampur
     if (!currentConversationId) return;
@@ -105,7 +119,12 @@ async function loadChatHistory() {
                 }
 
                 formatMarkdown(messageTextContainer.querySelector('p'));
-
+                if (msg.role === 'model' && msg.thoughts) {
+                    // Simpan data 'thoughts' ke elemen bubble-nya
+                    bubble.dataset.thoughts = msg.thoughts;
+                    // Panggil fungsi untuk nambahin ikon 💡
+                    addDropdownIcon(bubble);
+                }
                 // Simpan ke history lokal untuk AI
                 chatHistory.push({
                     id: `msg-${msg.db_id}`,
@@ -740,7 +759,32 @@ function addDropdownIcon(messageBubble) {
     });
 }
 
-// ▼▼▼ TAMBAHKAN FUNGSI BARU INI ▼▼▼
+
+function showToastNotification(message, type = 'info') {
+    // Cek dulu, jangan sampai ada notif numpuk
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast-notification ${type}`; // 'info', 'error', 'success'
+    toast.textContent = message;
+
+    document.body.appendChild(toast);
+
+    // Memicu animasi masuk
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 100);
+
+    // Hapus otomatis setelah 5 detik
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.addEventListener('transitionend', () => toast.remove());
+    }, 5000);
+}
+
 function animateTextFadeIn(textElement) {
     // Ambil teks asli
     const originalText = textElement.textContent;
@@ -810,6 +854,7 @@ async function getAiResponse(userMessage, fileToSend = null) {
         formData.append('world_info', JSON.stringify(worldData));
         formData.append('npcs', JSON.stringify(npcData));
         formData.append('summary', currentSummary);
+        formData.append('conversation_id', currentConversationId);
         formData.append('model', selectedModel);
         if (customApiKey) formData.append('api_key', customApiKey);
         if (fileToSend) formData.append('image', fileToSend);
@@ -829,64 +874,83 @@ async function getAiResponse(userMessage, fileToSend = null) {
         let firstChunk = true;
         let finalReplyText = '';
 
+        let accumulatedResponse = ""; // Variabel baru untuk nyimpen teks lengkap
+
         while (true) {
             const { value, done } = await reader.read();
             if (done) {
                 if (timerInterval) clearInterval(timerInterval);
                 break;
             }
+
             const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n\n');
+            // Kita proses per baris, karena kadang server kirim beberapa 'data:' sekaligus
+            const lines = chunk.split('\n');
 
             for (const line of lines) {
                 if (line.startsWith('data: ')) {
-                    const data = JSON.parse(line.substring(6));
-                    if (data.type === 'image_uri') {
-                        activeImageInfo = { uri: data.uri, mime: data.mime };
-                    } else if (data.type === 'error') {
-                        indicatorBubble.remove();
-                        createMessageBubble('ai', `Error: ${data.content}`, null, true);
-                        if (timerInterval) clearInterval(timerInterval);
-                        return;
-                    } else if (data.type === 'reply') {
-                        if (firstChunk) {
-                            indicatorBubble.querySelector('.message-text').innerHTML = '<p></p>';
-                            replyTextElement = indicatorBubble.querySelector('p');
-                            firstChunk = false;
+                    try {
+                        const data = JSON.parse(line.substring(6));
+
+                        if (data.type === 'image_uri') {
+                            activeImageInfo = { uri: data.uri, mime: data.mime };
+                        } else if (data.type === 'error') {
+                            indicatorBubble.remove();
+                            createMessageBubble('ai', `Error: ${data.content}`, null, true);
+                            if (timerInterval) clearInterval(timerInterval);
+                            return; // Hentikan semua proses jika ada error dari server
+                        } else if (data.type === 'summary_error') {
+                            // Tampilkan notifikasi toast yang keren!
+                            showToastNotification(data.content, 'error');
+                        } else if (data.type === 'thought') {
+                            accumulatedThoughts += data.content;
+                        } else if (data.type === 'reply') {
+                            // INI KUNCINYA: Tampilkan teks per-potongan (chunk)
+                            if (firstChunk) {
+                                indicatorBubble.querySelector('.message-text').innerHTML = '<p></p>';
+                                replyTextElement = indicatorBubble.querySelector('p');
+                                firstChunk = false;
+                            }
+                            if (replyTextElement) {
+                                // Langsung tambahkan potongan teks baru ke tampilan
+                                // replyTextElement.textContent += data.content;
+                                // Simpan juga ke variabel akumulasi kita
+                                accumulatedResponse += data.content;
+                            }
                         }
-                        if (replyTextElement) {
-                            replyTextElement.textContent += data.content;
-                            finalReplyText += data.content;
-                        }
-                    } else if (data.type === 'thought') {
-                        accumulatedThoughts += data.content;
+                        scrollToBottom(); // Scroll setiap kali ada konten baru
+                    } catch (e) {
+                        // Jangan error-kan seluruh stream cuma karena satu baris JSON salah
+                        console.warn("Gagal parse satu baris JSON dari stream:", line, e);
                     }
-                    scrollToBottom();
                 }
             }
         }
 
         // --- INI BAGIAN BARUNYA: SIMPAN BALASAN AI KE POSTGRESQL ---
-        if (finalReplyText.trim() !== '') {
-            formatMarkdown(replyTextElement); // Format tampilan
+        if (accumulatedResponse.trim() !== '') {
+            await typewriterEffect(replyTextElement, accumulatedResponse.trim(), 10);
+            formatMarkdown(replyTextElement);
             const finalThoughts = accumulatedThoughts.trim();
 
+            // Simpan ke DB (logika ini tetap sama)
             const saveResponse = await fetch('/api/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     conversation_id: currentConversationId,
                     role: 'model',
-                    content: finalReplyText,
+                    content: accumulatedResponse, // <-- Simpan teks lengkapnya
                     thoughts: finalThoughts,
                 }),
             });
             const saveData = await saveResponse.json();
             const newDbId = saveData.new_message_id;
+            console.log(`💬 Jumlah dialog saat ini (di browser): ${saveData.total_messages}`);
             console.log(`💬 Pesan KARAKTER disimpan ke DB dengan ID: ${newDbId}`);
             indicatorBubble.id = `msg-${newDbId}`;
             indicatorBubble.dataset.id = newDbId;
-            chatHistory.push({ id: `msg-${newDbId}`, role: 'model', parts: [finalReplyText] });
+            chatHistory.push({ id: `msg-${newDbId}`, role: 'model', parts: [accumulatedResponse] });
 
             if (finalThoughts) {
                 indicatorBubble.dataset.thoughts = finalThoughts;
@@ -907,111 +971,47 @@ async function getAiResponse(userMessage, fileToSend = null) {
         }
     }
 }
-
-// Taruh ini di atas atau di bawah fungsi getAiResponse
-
-// GANTI TOTAL FUNGSI INI DI js/script.js
-async function handleSummarization() {
-    // Cek dulu, jangan-jangan sesi belum ada atau belum waktunya meringkas
-    if (!currentConversationId || chatHistory.length < lastSummaryCount + SUMMARY_INTERVAL) {
-        return;
-    }
-
-    console.log(`%c🔔 WAKTUNYA MERINGKAS! History mencapai ${chatHistory.length} pesan.`, 'color: #ffc107; font-weight: bold;');
-    const targetSummaryCount = lastSummaryCount + SUMMARY_INTERVAL;
-
-    try {
-        // Langkah 1: Selalu ambil ringkasan TERBARU dari server (PostgreSQL).
-        // Ini sumber kebenaran utama kita.
-        console.log("Mengambil ringkasan terbaru dari server...");
-        const sessionInfoResponse = await fetch(`/api/sessions/${currentConversationId}`);
-        if (!sessionInfoResponse.ok) {
-            // Kalau gagal, mending jangan lanjutin, nanti ringkasannya salah.
-            throw new Error("Gagal mengambil info sesi untuk peringkasan.");
-        }
-        const sessionInfo = await sessionInfoResponse.json();
-        const oldSummaryFromServer = sessionInfo.summary || "";
-        console.log("Ringkasan lama dari server berhasil didapat:", oldSummaryFromServer);
-
-        // Ambil potongan history yang mau diringkas dari chatHistory lokal
-        const historyToSummarize = chatHistory.slice(lastSummaryCount, targetSummaryCount);
-
-        const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
-
-        // Langkah 2: Kirim history BARU dan ringkasan LAMA ke endpoint /summarize
-        const summaryResponse = await fetch('/summarize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                history: historyToSummarize,
-                old_summary: oldSummaryFromServer, // Kirim ringkasan dari server
-                api_key: apiSettings.apiKey || null,
-                model: apiSettings.model || 'models/gemini-2.5-flash'
-            }),
-        });
-
-        if (!summaryResponse.ok) {
-            throw new Error("Endpoint /summarize mengembalikan error.");
-        }
-
-        const data = await summaryResponse.json();
-        const finalUpdatedSummary = data.summary;
-
-        // Langkah 3: Jika ada ringkasan baru yang sudah digabung, KIRIM BALIK ke server untuk disimpan.
-        if (finalUpdatedSummary) {
-            await fetch(`/api/sessions/${currentConversationId}/summary`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ summary: finalUpdatedSummary })
-            });
-            console.log(`✅ Ringkasan baru berhasil dikirim dan disimpan permanen di server.`);
-        }
-
-        // Update counter lokal kita HANYA jika semua proses di atas berhasil.
-        lastSummaryCount = targetSummaryCount;
-
-    } catch (error) {
-        console.error("Error selama proses handleSummarization:", error);
-    }
-}
-
 // GANTI TOTAL FUNGSI sendMessage DENGAN INI
 async function sendMessage(fileToResend = null) {
+    // Kunci #1: Cek HANYA 'isReplying'. Jika true, jangan lakukan apa-apa.
+    if (isReplying) {
+        console.warn("Pengiriman pesan diblokir sementara (menunggu AI).");
+        return;
+    }
     const messageText = inputArea.value.trim();
     const imageFile = fileToResend || selectedFile;
 
     if (!messageText && !imageFile) return;
-    if (isReplying) return;
 
+    // Kunci #2: SEGERA set isReplying ke true dan update tombol.
+    // Ini akan menonaktifkan tombol kirim dan mengubahnya jadi tombol "Stop".
     isReplying = true;
-    abortController = new AbortController();
-    sendButton.classList.add('is-stopping');
-    sendButton.title = 'Hentikan';
+    abortController = new AbortController(); // Siapkan remote control untuk stop
+    updateSendButtonState(); // Panggil manajer untuk update tampilan tombol
+
     inputArea.value = '';
     inputArea.style.height = 'auto';
     imagePreviewContainer.classList.add('hidden');
     selectedFile = null;
     inputArea.focus();
 
-    // Kita buat ID sementara untuk bubble di layar, nanti di-update
     const tempId = `msg-temp-${Date.now()}`;
     const userBubble = createMessageBubble('user', messageText, tempId);
 
-    // Logika untuk menampilkan gambar (jika ada) di bubble
     let imageDataForApi = null;
     if (imageFile) {
         try {
             const base64Image = await fileToBase64(imageFile);
-            imageDataForApi = base64Image; // Ini yang akan dikirim ke API
+            imageDataForApi = base64Image;
             const imageElement = document.createElement('img');
             imageElement.src = base64Image;
             imageElement.className = 'sent-image';
             userBubble.querySelector('.message-text').insertBefore(imageElement, userBubble.querySelector('.message-text p'));
         } catch (error) {
             console.error("Gagal proses gambar:", error);
-            userBubble.remove(); // Hapus bubble jika gambar gagal diproses
-            isReplying = false; // Buka kunci lagi
-            sendButton.classList.remove('is-stopping');
+            userBubble.remove();
+            isReplying = false;
+            updateSendButtonState(); // <-- UPDATE saat error juga
             return;
         }
     }
@@ -1021,7 +1021,6 @@ async function sendMessage(fileToResend = null) {
     chatHistory.push({ id: tempId, role: 'user', parts: [messageText] });
 
     try {
-        // --- INI BAGIAN BARUNYA: SIMPAN KE POSTGRESQL ---
         const response = await fetch('/api/messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1029,39 +1028,35 @@ async function sendMessage(fileToResend = null) {
                 conversation_id: currentConversationId,
                 role: 'user',
                 content: messageText,
-                imageData: imageDataForApi // Kirim data gambar base64
+                imageData: imageDataForApi
             }),
         });
 
         if (!response.ok) throw new Error("Gagal menyimpan pesan user ke server.");
 
         const data = await response.json();
-        const newDbId = data.new_message_id; // ID asli dari PostgreSQL
-
-        // Update ID bubble dan history array dengan ID yang benar
+        const newDbId = data.new_message_id;
+        console.log(`💬 Jumlah dialog saat ini (di browser): ${data.total_messages}`);
         const newIdString = `msg-${newDbId}`;
         userBubble.id = newIdString;
         userBubble.dataset.id = newDbId;
         const msgIndex = chatHistory.findIndex(msg => msg.id === tempId);
         if (msgIndex > -1) chatHistory[msgIndex].id = newIdString;
 
-        console.log(`Pesan disimpan ke DB dengan ID: ${newDbId}`);
+        console.log(`💬 Pesan USER disimpan ke DB dengan ID: ${newDbId}`);
 
-        // Panggil AI setelah pesan user berhasil tersimpan
         await getAiResponse(messageText, imageFile);
-        await handleSummarization();
 
     } catch (error) {
         if (error.name !== 'AbortError') {
             console.error("Error fatal saat kirim pesan:", error);
-            // Ganti teks bubble jadi pesan error
             userBubble.querySelector('.message-text p').textContent = "Gagal terkirim. Klik Resend.";
             userBubble.classList.add('error-message');
         }
     } finally {
+        // Bagian terpenting: set isReplying ke false dan panggil manajer
         isReplying = false;
-        sendButton.classList.remove('is-stopping');
-        sendButton.title = 'Kirim';
+        updateSendButtonState(); // <-- PANGGIL MANAJER DI AKHIR
     }
 }
 
@@ -1104,12 +1099,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ambil session_id dari URL
     const urlParams = new URLSearchParams(window.location.search);
     const sessionIdFromUrl = urlParams.get('session_id');
-
-    // Muat history berdasarkan ID dari URL (atau muat yang terakhir jika tidak ada)
     loadChatHistory(sessionIdFromUrl ? parseInt(sessionIdFromUrl) : null);
 
+    const editSummaryLink = document.getElementById('edit-summary-link');
+    if (editSummaryLink && sessionIdFromUrl) {
+        editSummaryLink.href = `summarization-editor.html?session_id=${sessionIdFromUrl}`;
+    } else if (editSummaryLink) {
+        // Kalau nggak ada session_id, sembunyiin aja link-nya
+        editSummaryLink.style.display = 'none';
+    }
 
-    // --- EVENT LISTENERS (HANYA SATU KALI INISIALISASI) ---
     const inputField = document.querySelector('.chat-input-area textarea');
     if (inputField) {
         // Simpan tinggi awal
@@ -1127,12 +1126,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Listener untuk tombol send dan input area
     sendButton.addEventListener('click', () => {
         if (isReplying) {
+            // Jika AI sedang membalas (tombol dalam mode 'Stop'),
+            // maka kita panggil abort().
+            console.log("👆 Tombol Stop ditekan. Mengirim sinyal abort...");
             abortController.abort();
-            // ▼▼▼ TAMBAHKAN 3 BARIS INI ▼▼▼
-            // isReplying = false; // Langsung set false
-            // sendButton.classList.remove('is-stopping'); // Langsung balikin tampilan
-            // sendButton.title = 'Kirim'; // Langsung balikin tooltip
+
+            // Kita TIDAK perlu mengubah 'isReplying' di sini.
+            // Biarkan blok 'finally' di sendMessage yang menanganinya
+            // agar status selalu konsisten.
+
         } else {
+            // Jika AI tidak sedang membalas (tombol dalam mode 'Kirim'),
+            // maka kita panggil sendMessage().
             sendMessage();
         }
     });
@@ -1173,6 +1178,13 @@ document.addEventListener('DOMContentLoaded', () => {
     menuButton.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdownMenu.classList.toggle('hidden');
+    });
+
+    dropdownMenu.addEventListener('click', (e) => {
+        // Kita cuma mau dia nutup kalo yang diklik itu beneran link (tag <a>)
+        if (e.target.tagName === 'A') {
+            dropdownMenu.classList.add('hidden');
+        }
     });
 
     // Listener untuk tombol New Chat (+)

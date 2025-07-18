@@ -224,10 +224,15 @@ def stream_generator(
             yield f"data: {json.dumps({'type': 'error', 'content': error_content})}\n\n"
 
     except Exception as e:
-        # Menangkap error lain yang mungkin terjadi selama iterasi
+        # Menangkap error lain yang mungkin terjadi
         print(f"❌ Terjadi error tak terduga DI DALAM loop streaming: {e}")
+        # Kunci: Cek apakah error ini adalah error ringkasan yang kita lempar tadi
+        if "SummarizationError" in str(e):
+            error_content = "Gagal membuat ringkasan memori. Chat tetap berjalan, tapi AI mungkin sedikit lupa. Akan dicoba lagi nanti."
+            yield f"data: {json.dumps({'type': 'summary_error', 'content': error_content})}\n\n"
+        
+        # Kirim juga error teknisnya (opsional, tapi bagus untuk debug)
         yield f"data: {json.dumps({'type': 'error', 'content': f'Terjadi masalah saat streaming: {str(e)}'})}\n\n"
-
 
 # --- Route untuk Menyajikan Halaman Utama ---
 @app.route("/")
@@ -250,81 +255,103 @@ def show_page(page_name):
 
 # === ENDPOINT UNTUK SUMMARIZE ===
 # === ENDPOINT UNTUK SUMMARIZE (VERSI BARU DENGAN AKUMULASI) ===
-@app.route("/summarize", methods=["POST"])
-def summarize():
-    try:
-        data = request.json
-        history_to_summarize = data.get("history", [])
-        old_summary = data.get("old_summary", "").strip()  # <-- AMBIL RINGKASAN LAMA
-        custom_api_key = data.get("api_key", None)
-        selected_model = data.get("model", "models/gemini-2.5-flash")
 
-        if not history_to_summarize:
-            # Jika tidak ada history baru, kembalikan saja ringkasan lama apa adanya.
-            return Response(
-                json.dumps({"summary": old_summary}),
-                status=200,
-                mimetype="application/json",
+def check_and_summarize_if_needed(conversation_id, conn):
+    """
+    Fungsi cerdas untuk memeriksa dan melakukan peringkasan secara otomatis
+    jika sudah waktunya.
+    """
+    SUMMARY_INTERVAL = 10  # Kita definisikan intervalnya di sini
+    print(f"🧠 Mengecek kebutuhan ringkasan untuk sesi ID: {conversation_id}...")
+
+    try:
+        with conn.cursor() as cur:
+            # 1. Ambil data penting dari database dalam satu kali jalan
+            cur.execute(
+                "SELECT summary, last_summary_message_count FROM public.conversation WHERE id = %s",
+                (conversation_id,),
+            )
+            session_data = cur.fetchone()
+            if not session_data:
+                print(f"⚠️ Sesi {conversation_id} tidak ditemukan untuk peringkasan.")
+                return ""  # Kembalikan summary kosong jika sesi tidak ada
+
+            current_summary, last_summary_count = session_data
+
+            cur.execute(
+                "SELECT COUNT(*) FROM public.message WHERE conversation_id = %s",
+                (conversation_id,),
+            )
+            current_message_count = cur.fetchone()[0]
+
+            # 2. Logika utama: Cek apakah sudah waktunya meringkas
+            if current_message_count < last_summary_count + SUMMARY_INTERVAL:
+                print(
+                    f"✅ Belum perlu meringkas. Pesan: {current_message_count}, Batas berikut: {last_summary_count + SUMMARY_INTERVAL}"
+                )
+                return current_summary  # Kembalikan summary yang ada sekarang
+
+            print(
+                f"🔥 WAKTUNYA MERINGKAS! Pesan saat ini: {current_message_count}, Terakhir diringkas: {last_summary_count}"
             )
 
-        history_text = "\n".join(
-            [f"{msg['role']}: {msg['parts'][0]}" for msg in history_to_summarize]
-        )
-        summarization_prompt = (
-            f"Kamu adalah AI yang bertugas meringkas percakapan. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf.\n\n"
-            f"ATURAN RINGKASAN:\n"
-            f"- Gaya bahasa HARUS informal dan santai.\n"
-            f"- Fokus pada detail penting: janji spesifik, kesepakatan, nama, tempat, dan perubahan emosi.\n"
-            f"- JANGAN menambahkan opinimu atau informasi yang tidak ada di dalam teks.\n\n"
-            f"PENTING: Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri. JANGAN sertakan kalimat pembuka seperti 'Berikut adalah ringkasannya' atau 'Oke, ini ringkasannya'. Langsung tulis poin-poin ringkasannya.\n\n"
-            f"--- PENGGALAN PERCAKAPAN YANG HARUS DIRINGKAS ---\n"
-            f"{history_text}\n"
-            f"--- SELESAI ---"
-        )
+            # 3. Ambil potongan history yang akan diringkas
+            messages_to_summarize = []
+            # Kita ambil dari pesan terakhir yang diringkas sampai batas interval berikutnya
+            offset = last_summary_count
+            limit = SUMMARY_INTERVAL
+            cur.execute(
+                "SELECT role, content FROM public.message WHERE conversation_id = %s ORDER BY timestamp ASC LIMIT %s OFFSET %s",
+                (conversation_id, limit, offset),
+            )
+            rows = cur.fetchall()
+            for row in rows:
+                # Formatnya kita sesuaikan dengan yang diharapkan fungsi summarize lama
+                messages_to_summarize.append({"role": row[0], "parts": [row[1]]})
 
-        api_key_to_use = custom_api_key or os.getenv("GEMINI_API_KEY")
-        if not api_key_to_use:
-            raise ValueError("Tidak ada API Key yang tersedia untuk meringkas.")
+            if not messages_to_summarize:
+                print(
+                    "🤔 Tidak ada pesan baru untuk diringkas, aneh. Menggunakan summary lama."
+                )
+                return current_summary
 
-        client = genai.Client(api_key=api_key_to_use)
+            # 4. Panggil API Gemini untuk meringkas (mirip kode lama kamu)
+            history_text = "\n".join(
+                [f"{msg['role']}: {msg['parts'][0]}" for msg in messages_to_summarize]
+            )
+            summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
 
-        # Minta AI meringkas HANYA potongan chat yang baru
-        response = client.models.generate_content(
-            model=selected_model, contents=summarization_prompt
-        )
+            api_key_to_use = os.getenv("GEMINI_API_KEY")
+            if not api_key_to_use:
+                raise ValueError("API Key tidak ditemukan untuk meringkas.")
 
-        # ▼▼▼ PERBAIKAN: Cek dulu apakah AI memberikan balasan teks ▼▼▼
-        new_summary_chunk = ""  # Inisialisasi dengan string kosong sebagai default
-        if response.text:
-            # Jika response.text tidak kosong (bukan None), baru kita proses
-            new_summary_chunk = response.text.strip()
-        # ▲▲▲ SELESAI PERBAIKAN ▲▲▲
+            client = genai.Client(api_key=api_key_to_use)
+            response = client.models.generate_content(
+                model="models/gemini-2.5-flash", contents=summarization_prompt
+            )
+            new_summary_chunk = response.text.strip() if response.text else ""
 
-        print(f"Potongan ringkasan baru diterima: {new_summary_chunk}")
+            # 5. Gabungkan dan simpan summary baru ke database
+            final_summary = f"{current_summary}\n\n{new_summary_chunk}".strip()
+            new_last_summary_count = last_summary_count + len(messages_to_summarize)
 
-        # --- INI BAGIAN PENTINGNYA: GABUNGKAN DI SINI ---
-        if old_summary:
-            # Jika ada ringkasan lama, gabungkan dengan yang baru
-            final_summary = f"{old_summary}\n\n{new_summary_chunk}"
-        else:
-            # Jika ini ringkasan pertama, jadikan ini sebagai ringkasan final
-            final_summary = new_summary_chunk
+            cur.execute(
+                "UPDATE public.conversation SET summary = %s, last_summary_message_count = %s WHERE id = %s",
+                (final_summary, new_last_summary_count, conversation_id),
+            )
+            conn.commit()  # Simpan perubahan ke DB
+            print(
+                f"✅ Ringkasan berhasil diupdate untuk sesi {conversation_id}. Jumlah pesan ter-ringkas: {new_last_summary_count}"
+            )
 
-        print(f"Ringkasan final yang akan dikirim kembali: {final_summary}")
-
-        return Response(
-            json.dumps({"summary": final_summary}),  # <-- KIRIM HASIL GABUNGAN
-            status=200,
-            mimetype="application/json",
-        )
+            return final_summary
 
     except Exception as e:
-        print(f"❌ Error saat meringkas: {e}")
-        return Response(
-            json.dumps({"error": f"Gagal meringkas di server: {e}"}),
-            status=500,
-            mimetype="application/json",
-        )
+        print(f"❌ GAGAL TOTAL di dalam fungsi check_and_summarize: {e}")
+        conn.rollback()  # Batalkan perubahan jika ada error
+        raise Exception(f"SummarizationError: Gagal meringkas di backend. Penyebab: {e}")
+    
+        return current_summary if "current_summary" in locals() else ""
 
 
 # === ENDPOINT UTAMA UNTUK CHAT ===
@@ -337,8 +364,37 @@ def chat():
             json.dumps({"error": "Request harus dalam format FormData"}), status=400
         )
 
+    # Kita butuh conversation_id di awal untuk logika ringkasan
+    # Kita ambil dari history pesan terakhir, ini asumsi yang aman.
+    temp_history = json.loads(request.form.get("history", "[]"))
+    if not temp_history:
+        # Jika history kosong (pesan pertama), tidak mungkin ada conversation_id
+        # Kita butuh frontend mengirimkannya secara eksplisit.
+        # Untuk sekarang kita lanjutkan, tapi ini area untuk perbaikan nanti.
+        # Mari kita coba ambil dari form secara langsung.
+        conversation_id = request.form.get("conversation_id")
+        if not conversation_id:
+            return Response(
+                json.dumps(
+                    {"error": "conversation_id tidak ditemukan di request awal"}
+                ),
+                status=400,
+            )
+    else:
+        conversation_id = request.form.get("conversation_id")
+
+    conn = None  # Definisikan di luar try
     try:
-        # Ambil semua data dari request.form
+        # --- LOGIKA BARU DIMULAI DI SINI ---
+        conn = get_db_connection()
+        if conn is None:
+            raise Exception("Gagal terhubung ke database untuk memulai chat.")
+
+        # Panggil fungsi pintar kita SEBELUM melakukan hal lain
+        summary_terbaru = check_and_summarize_if_needed(int(conversation_id), conn)
+        # --- SELESAI LOGIKA BARU ---
+
+        # Ambil semua data dari request.form (seperti sebelumnya)
         user_message = request.form.get("message")
         history = json.loads(request.form.get("history", "[]"))
         character_info = json.loads(request.form.get("character", "{}"))
@@ -346,91 +402,82 @@ def chat():
         memory_entries = json.loads(request.form.get("memory", "[]"))
         world_info_entries = json.loads(request.form.get("world_info", "[]"))
         npc_entries = json.loads(request.form.get("npcs", "[]"))
-        summary = request.form.get("summary", "")
         selected_model = request.form.get("model", "models/gemini-2.5-flash")
         custom_api_key = request.form.get("api_key", None)
+        image_part = None
+        image_uri_to_return = None
+        active_image_uri = request.form.get("active_image_uri", None)
+        active_image_mime = request.form.get("active_image_mime", None)
+
+        if "image" in request.files and request.files["image"].filename != "":
+            image_file = request.files["image"]
+            temp_file_path = None
+            try:
+                api_key_for_upload = custom_api_key or os.getenv("GEMINI_API_KEY")
+                if not api_key_for_upload:
+                    raise ValueError("API Key tidak tersedia untuk upload file.")
+                upload_client = genai.Client(api_key=api_key_for_upload)
+                filename = secure_filename(image_file.filename)
+                temp_file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+                image_file.save(temp_file_path)
+                print(f"Mengunggah file BARU: {temp_file_path} ke Google...")
+                uploaded_file = upload_client.files.upload(file=temp_file_path)
+                image_part = uploaded_file
+                image_uri_to_return = {
+                    "uri": uploaded_file.uri,
+                    "mime": image_file.mimetype,
+                }
+                print(f"File baru berhasil diunggah. URI: {uploaded_file.uri}")
+            except Exception as e:
+                print(f"❌ Gagal memproses gambar: {e}")
+                error_data = json.dumps(
+                    {"type": "error", "content": f"Gagal upload gambar: {str(e)}"}
+                )
+                return Response(f"data: {error_data}\n\n", mimetype="text/event-stream")
+            finally:
+                if temp_file_path and os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+        elif active_image_uri and active_image_mime:
+            try:
+                print(f"Menggunakan URI gambar yang sudah ada: {active_image_uri}")
+                image_part = types.Part.from_uri(
+                    file_uri=active_image_uri, mime_type=active_image_mime
+                )
+            except Exception as e:
+                print(f"❌ Gagal membuat Part dari URI: {e}")
+                image_part = None
+
+        # Panggil stream_generator dengan summary TERBARU
+        return Response(
+            stream_generator(
+                image_part,
+                image_uri_to_return,
+                history,
+                user_message,
+                character_info,
+                user_info,
+                memory_entries,
+                world_info_entries,
+                npc_entries,
+                summary_terbaru,  # <-- GUNAKAN SUMMARY DARI FUNGSI PINTAR KITA
+                selected_model,
+                custom_api_key,
+            ),
+            mimetype="text/event-stream",
+        )  # <-- PERHATIKAN POSISI KURUNG TUTUP INI
+
     except json.JSONDecodeError:
         return Response(
             json.dumps({"error": "Format JSON pada salah satu data form tidak valid"}),
             status=400,
         )
-
-    image_part = None
-    image_uri_to_return = (
-        None  # Variabel untuk menyimpan URI yang akan dikirim ke generator
-    )
-
-    # --- LOGIKA BARU UNTUK GAMBAR ---
-    active_image_uri = request.form.get("active_image_uri", None)
-    active_image_mime = request.form.get("active_image_mime", None)
-
-    # Proses file gambar jika ada
-    if "image" in request.files and request.files["image"].filename != "":
-        image_file = request.files["image"]
-        temp_file_path = None
-        try:
-            api_key_for_upload = custom_api_key or os.getenv("GEMINI_API_KEY")
-            if not api_key_for_upload:
-                raise ValueError("API Key tidak tersedia untuk upload file.")
-
-            # Gunakan client yang sama seperti caramu
-            upload_client = genai.Client(api_key=api_key_for_upload)
-
-            filename = secure_filename(image_file.filename)
-            temp_file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-            image_file.save(temp_file_path)
-
-            print(f"Mengunggah file BARU: {temp_file_path} ke Google...")
-            uploaded_file = upload_client.files.upload(file=temp_file_path)
-
-            # Ini dia bagian pentingnya!
-            image_part = (
-                uploaded_file  # Gunakan objek file langsung untuk request pertama
-            )
-            image_uri_to_return = {
-                "uri": uploaded_file.uri,
-                "mime": image_file.mimetype,  # Kita juga kirim tipe filenya
-            }
-            print(f"File baru berhasil diunggah. URI: {uploaded_file.uri}")
-
-        except Exception as e:
-            print(f"❌ Gagal memproses gambar: {e}")
-            error_data = json.dumps(
-                {"type": "error", "content": f"Gagal upload gambar: {str(e)}"}
-            )
-            return Response(f"data: {error_data}\n\n", mimetype="text/event-stream")
-        finally:
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-    elif active_image_uri and active_image_mime:
-        try:
-            print(f"Menggunakan URI gambar yang sudah ada: {active_image_uri}")
-            # Buat 'Part' dari URI yang sudah ada
-            image_part = types.Part.from_uri(
-                file_uri=active_image_uri, mime_type=active_image_mime
-            )
-        except Exception as e:
-            print(f"❌ Gagal membuat Part dari URI: {e}")
-            # Jika gagal, jangan kirim gambar apa pun
-            image_part = None
-    # Panggil stream_generator dengan semua data
-    return Response(
-        stream_generator(
-            image_part,
-            image_uri_to_return,  # Bisa None jika tidak ada gambar, atau berisi file jika ada
-            history,
-            user_message,
-            character_info,
-            user_info,
-            memory_entries,
-            world_info_entries,
-            npc_entries,
-            summary,
-            selected_model,
-            custom_api_key,
-        ),
-        mimetype="text/event-stream",
-    )
+    except Exception as e:
+        print(f"❌ Error fatal di endpoint /chat: {e}")
+        return Response(json.dumps({"error": str(e)}), status=500)
+    finally:
+        # Selalu tutup koneksi setelah selesai
+        if conn:
+            conn.close()
 
 
 # 1. Fungsi helper untuk koneksi ke Database PostgreSQL
@@ -456,13 +503,14 @@ def get_db_connection():
             database=database,
             user=username,
             password=password,
-            port=port
+            port=port,
         )
         return conn
     except Exception as e:
         print(f"❌ GAGAL KONEK KE DATABASE POSTGRESQL: {e}")
         # Return None jika gagal, biar aplikasi tidak crash total
         return None
+
 
 # 2. Endpoint untuk MENGAMBIL semua sesi dari Gudang Pusat (PostgreSQL)
 @app.route("/api/sessions", methods=["GET"])
@@ -472,7 +520,11 @@ def get_all_sessions():
         conn = get_db_connection()
         if conn is None:
             # Jika koneksi gagal, kirim error 503 Service Unavailable
-            return Response(json.dumps({"error": "Server tidak bisa terhubung ke database."}), status=503, mimetype='application/json')
+            return Response(
+                json.dumps({"error": "Server tidak bisa terhubung ke database."}),
+                status=503,
+                mimetype="application/json",
+            )
 
         # Pakai 'with' biar cursor otomatis ditutup
         with conn.cursor() as cur:
@@ -496,25 +548,38 @@ def get_all_sessions():
         # Ubah data dari format database (tuple) jadi format yang bisa dibaca JS (list of dict)
         sessions_list = []
         for row in sessions_from_db:
-            sessions_list.append({
-                "id": row[0],
-                "timestamp": row[1].isoformat() if row[1] else None, # isoformat() itu standar universal buat tanggal
-                "summary": row[2],
-                "character_name": row[3],
-                "character_avatar": row[4],
-                "message_count": row[5]
-            })
+            sessions_list.append(
+                {
+                    "id": row[0],
+                    "timestamp": row[1].isoformat()
+                    if row[1]
+                    else None,  # isoformat() itu standar universal buat tanggal
+                    "summary": row[2],
+                    "character_name": row[3],
+                    "character_avatar": row[4],
+                    "message_count": row[5],
+                }
+            )
 
         # Kirim datanya sebagai JSON
-        return Response(json.dumps(sessions_list), status=200, mimetype='application/json')
+        return Response(
+            json.dumps(sessions_list), status=200, mimetype="application/json"
+        )
 
     except Exception as e:
         print(f"❌ Terjadi kesalahan di endpoint /api/sessions: {e}")
-        return Response(json.dumps({"error": "Terjadi kesalahan di server saat mengambil data sesi."}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps(
+                {"error": "Terjadi kesalahan di server saat mengambil data sesi."}
+            ),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
         # Apapun yang terjadi, pastikan koneksi ke database ditutup
         if conn is not None:
             conn.close()
+
 
 # 3. Endpoint untuk MENGHAPUS sesi dari Gudang Pusat (PostgreSQL)
 @app.route("/api/sessions/<int:session_id>", methods=["DELETE"])
@@ -523,13 +588,17 @@ def delete_session(session_id):
     try:
         conn = get_db_connection()
         if conn is None:
-            return Response(json.dumps({"error": "Server tidak bisa terhubung ke database."}), status=503, mimetype='application/json')
+            return Response(
+                json.dumps({"error": "Server tidak bisa terhubung ke database."}),
+                status=503,
+                mimetype="application/json",
+            )
 
         # Kita pakai transaksi, jadi kalau salah satu gagal, semua dibatalkan. Aman!
         with conn.cursor() as cur:
             # Hapus dulu semua 'anak'-nya (pesan-pesan) di tabel messages
             # ...
-# Hapus dulu semua 'anak'-nya (pesan-pesan) di tabel message
+            # Hapus dulu semua 'anak'-nya (pesan-pesan) di tabel message
             cur.execute("DELETE FROM message WHERE conversation_id = %s", (session_id,))
             # Baru hapus 'induk'-nya di tabel conversation
             cur.execute("DELETE FROM conversation WHERE id = %s", (session_id,))
@@ -537,18 +606,29 @@ def delete_session(session_id):
         # Simpan perubahan permanen ke database
         conn.commit()
 
-        print(f"✅ Sesi ID {session_id} dan semua pesannya berhasil dihapus dari database.")
-        return Response(json.dumps({"message": "Sesi berhasil dihapus"}), status=200, mimetype='application/json')
+        print(
+            f"✅ Sesi ID {session_id} dan semua pesannya berhasil dihapus dari database."
+        )
+        return Response(
+            json.dumps({"message": "Sesi berhasil dihapus"}),
+            status=200,
+            mimetype="application/json",
+        )
 
     except Exception as e:
         # Jika ada error, batalkan semua perubahan
         if conn:
             conn.rollback()
         print(f"❌ Gagal menghapus sesi ID {session_id}: {e}")
-        return Response(json.dumps({"error": "Gagal menghapus sesi di server."}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps({"error": "Gagal menghapus sesi di server."}),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
         if conn is not None:
             conn.close()
+
 
 # Taruh ini di app.py, di bawah fungsi get_all_sessions()
 
@@ -557,6 +637,7 @@ def delete_session(session_id):
 
 # 4. Endpoint untuk MEMBUAT sesi BARU di Gudang Pusat (PostgreSQL)
 # Di dalam app.py
+
 
 # 4. Endpoint untuk MEMBUAT sesi BARU di Gudang Pusat (PostgreSQL)
 @app.route("/api/sessions", methods=["POST"])
@@ -571,36 +652,51 @@ def create_new_session():
 
         conn = get_db_connection()
         if conn is None:
-            return Response(json.dumps({"error": "Server tidak bisa terhubung ke database."}), status=503, mimetype='application/json')
+            return Response(
+                json.dumps({"error": "Server tidak bisa terhubung ke database."}),
+                status=503,
+                mimetype="application/json",
+            )
 
         # Ini adalah satu-satunya query yang harus ada di sini
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO public.conversation (character_name, character_avatar, summary, greeting, timestamp) VALUES (%s, %s, %s, %s, NOW() AT TIME ZONE 'Asia/Makassar') RETURNING id",
-                (char_name, char_avatar, 'Percakapan baru dimulai...', char_greeting)
+                (char_name, char_avatar, "Percakapan baru dimulai...", char_greeting),
             )
             # Ambil ID yang baru saja dibuat oleh database
             new_session_id = cur.fetchone()[0]
-        
+
         # Simpan perubahan ke database
         conn.commit()
 
         print(f"✅ Sesi baru berhasil dibuat di database dengan ID: {new_session_id}")
-        
+
         # Kirim kembali ID baru itu ke frontend
-        return Response(json.dumps({"new_session_id": new_session_id}), status=201, mimetype='application/json')
+        return Response(
+            json.dumps({"new_session_id": new_session_id}),
+            status=201,
+            mimetype="application/json",
+        )
 
     except Exception as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         print(f"❌ Gagal membuat sesi baru: {e}")
-        return Response(json.dumps({"error": "Gagal membuat sesi baru di server."}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps({"error": "Gagal membuat sesi baru di server."}),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
         if conn is not None:
             conn.close()
 
+
 # ===================================================================
 # === API ENDPOINTS BARU UNTUK HALAMAN CHAT ===
 # ===================================================================
+
 
 # 5. Endpoint untuk MENGAMBIL semua pesan dari sebuah sesi
 @app.route("/api/sessions/<int:session_id>/messages", methods=["GET"])
@@ -611,42 +707,58 @@ def get_messages_for_session(session_id):
     try:
         conn = get_db_connection()
         if conn is None:
-            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503, mimetype='application/json')
+            return Response(
+                json.dumps({"error": "Koneksi DB gagal"}),
+                status=503,
+                mimetype="application/json",
+            )
 
         # Kita gabungin semua dalam satu blok 'with' biar efisien
         with conn.cursor() as cur:
             # === Query Pertama: Ambil semua pesan ===
             cur.execute(
                 "SELECT id, role, content, thoughts, image_data, timestamp FROM public.message WHERE conversation_id = %s ORDER BY timestamp ASC",
-                (session_id,) # Variabel session_id kebaca di sini
+                (session_id,),  # Variabel session_id kebaca di sini
             )
             messages_from_db = cur.fetchall()
 
             messages_list = []
             for row in messages_from_db:
-                messages_list.append({
-                    "db_id": row[0],
-                    "role": row[1],
-                    "content": row[2],
-                    "thoughts": row[3],
-                    "imageData": row[4],
-                    "timestamp": row[5].isoformat()
-                })
-            
+                messages_list.append(
+                    {
+                        "db_id": row[0],
+                        "role": row[1],
+                        "content": row[2],
+                        "thoughts": row[3],
+                        "imageData": row[4],
+                        "timestamp": row[5].isoformat(),
+                    }
+                )
+
             # === Query Kedua: Ambil greeting dari sesi yang sama ===
             cur.execute(
                 "SELECT greeting FROM public.conversation WHERE id = %s",
-                (session_id,) # Variabel session_id juga kebaca di sini
+                (session_id,),  # Variabel session_id juga kebaca di sini
             )
             result = cur.fetchone()
-            greeting = result[0] if result and result[0] is not None else "Selamat datang!"
+            greeting = (
+                result[0] if result and result[0] is not None else "Selamat datang!"
+            )
 
         # Return dilakukan di luar 'with' block, setelah semua query selesai
-        return Response(json.dumps({"messages": messages_list, "greeting": greeting}), status=200, mimetype='application/json')
+        return Response(
+            json.dumps({"messages": messages_list, "greeting": greeting}),
+            status=200,
+            mimetype="application/json",
+        )
 
     except Exception as e:
         print(f"❌ Error di get_messages_for_session: {e}")
-        return Response(json.dumps({"error": "Gagal mengambil pesan"}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps({"error": "Gagal mengambil pesan"}),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
         if conn:
             conn.close()
@@ -662,23 +774,36 @@ def add_new_message():
         session_id = data.get("conversation_id")
         role = data.get("role")
         content = data.get("content")
-        thoughts = data.get("thoughts", None) # Bisa kosong
-        image_data = data.get("imageData", None) # Bisa kosong
+        thoughts = data.get("thoughts", None)  # Bisa kosong
+        image_data = data.get("imageData", None)  # Bisa kosong
 
         conn = get_db_connection()
         if conn is None:
-            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503, mimetype='application/json')
+            return Response(
+                json.dumps({"error": "Koneksi DB gagal"}),
+                status=503,
+                mimetype="application/json",
+            )
 
         with conn.cursor() as cur:
             # Ganti nama tabelnya jadi 'message' (tanpa 's')
             cur.execute(
                 "INSERT INTO public.message (conversation_id, role, content, thoughts, image_data, timestamp) VALUES (%s, %s, %s, %s, %s, NOW() AT TIME ZONE 'Asia/Makassar') RETURNING id",
-                (session_id, role, content, thoughts, image_data)
+                (session_id, role, content, thoughts, image_data),
             )
             new_message_id = cur.fetchone()[0]
-        
+            cur.execute(
+                "SELECT COUNT(*) FROM public.message WHERE conversation_id = %s",
+                (session_id,)
+            )
+            total_messages = cur.fetchone()[0]
+            print(f"💬 Jumlah dialog saat ini di sesi {session_id}: {total_messages}")
+
         conn.commit()
-        return Response(json.dumps({"new_message_id": new_message_id}), status=201, mimetype='application/json')
+        return Response(json.dumps({
+            "new_message_id": new_message_id,
+            "total_messages": total_messages  # <-- Kita tambahkan "hadiah"-nya di sini
+        }), status=201, mimetype='application/json')
 
     except Exception as e:
         if conn: conn.rollback()
@@ -698,24 +823,39 @@ def update_session_summary(session_id):
 
         conn = get_db_connection()
         if conn is None:
-            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503, mimetype='application/json')
+            return Response(
+                json.dumps({"error": "Koneksi DB gagal"}),
+                status=503,
+                mimetype="application/json",
+            )
 
         with conn.cursor() as cur:
             # Ganti nama tabelnya jadi 'conversation' (tanpa 's')
             cur.execute(
                 "UPDATE public.conversation SET summary = %s WHERE id = %s",
-                (new_summary, session_id)
+                (new_summary, session_id),
             )
-        
+
         conn.commit()
-        return Response(json.dumps({"message": "Ringkasan berhasil diupdate"}), status=200, mimetype='application/json')
+        return Response(
+            json.dumps({"message": "Ringkasan berhasil diupdate"}),
+            status=200,
+            mimetype="application/json",
+        )
 
     except Exception as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         print(f"❌ Error di update_session_summary: {e}")
-        return Response(json.dumps({"error": "Gagal update ringkasan"}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps({"error": "Gagal update ringkasan"}),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
+
 
 # 8. Endpoint untuk MENGAMBIL info SATU sesi (termasuk summary)
 @app.route("/api/sessions/<int:session_id>", methods=["GET"])
@@ -724,26 +864,44 @@ def get_single_session_info(session_id):
     try:
         conn = get_db_connection()
         if conn is None:
-            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503, mimetype='application/json')
+            return Response(
+                json.dumps({"error": "Koneksi DB gagal"}),
+                status=503,
+                mimetype="application/json",
+            )
 
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT summary FROM public.conversation WHERE id = %s",
-                (session_id,)
+                "SELECT summary FROM public.conversation WHERE id = %s", (session_id,)
             )
             result = cur.fetchone()
-        
+
         if result:
-            return Response(json.dumps({"summary": result[0]}), status=200, mimetype='application/json')
+            return Response(
+                json.dumps({"summary": result[0]}),
+                status=200,
+                mimetype="application/json",
+            )
         else:
-            return Response(json.dumps({"error": "Sesi tidak ditemukan"}), status=404, mimetype='application/json')
-            
+            return Response(
+                json.dumps({"error": "Sesi tidak ditemukan"}),
+                status=404,
+                mimetype="application/json",
+            )
+
     except Exception as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         print(f"❌ Error di mengambil_session_summary: {e}")
-        return Response(json.dumps({"error": "Gagal mengambil ringkasan"}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps({"error": "Gagal mengambil ringkasan"}),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
+
 
 # ===================================================================
 # === API ENDPOINTS BARU UNTUK MANIPULASI PESAN ===
@@ -753,6 +911,7 @@ def get_single_session_info(session_id):
 # === API ENDPOINTS FINAL UNTUK MANIPULASI PESAN ===
 # ===================================================================
 
+
 # 9. Endpoint untuk MENGHAPUS pesan (bisa satu atau banyak)
 #    Kita pake metode POST biar bisa kirim body (daftar ID)
 @app.route("/api/messages/delete", methods=["POST"])
@@ -760,24 +919,40 @@ def delete_messages_unified():
     conn = None
     try:
         data = request.json
-        ids_to_delete = data.get("ids") # Selalu harapkan daftar/list
+        ids_to_delete = data.get("ids")  # Selalu harapkan daftar/list
 
         if not ids_to_delete or not isinstance(ids_to_delete, list):
-            return Response(json.dumps({"error": "Daftar ID tidak valid"}), status=400, mimetype='application/json')
+            return Response(
+                json.dumps({"error": "Daftar ID tidak valid"}),
+                status=400,
+                mimetype="application/json",
+            )
 
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM public.message WHERE id IN %s", (tuple(ids_to_delete),))
+            cur.execute(
+                "DELETE FROM public.message WHERE id IN %s", (tuple(ids_to_delete),)
+            )
         conn.commit()
-        
+
         print(f"✅ Pesan dengan ID {ids_to_delete} berhasil dihapus.")
-        return Response(json.dumps({"message": "Pesan berhasil dihapus"}), status=200, mimetype='application/json')
+        return Response(
+            json.dumps({"message": "Pesan berhasil dihapus"}),
+            status=200,
+            mimetype="application/json",
+        )
     except Exception as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         print(f"❌ Error di delete_messages_unified: {e}")
-        return Response(json.dumps({"error": "Gagal hapus pesan di server"}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps({"error": "Gagal hapus pesan di server"}),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 
 # 10. Endpoint untuk MENGUPDATE pesan (fitur Edit & Resend)
@@ -793,21 +968,34 @@ def update_message_unified(message_id):
             # Hapus dulu semua pesan SETELAH pesan yang diedit
             cur.execute(
                 "DELETE FROM public.message WHERE id > %s AND conversation_id = (SELECT conversation_id FROM public.message WHERE id = %s)",
-                (message_id, message_id)
+                (message_id, message_id),
             )
             # Baru UPDATE konten pesan yang diedit
             cur.execute(
                 "UPDATE public.message SET content = %s WHERE id = %s",
-                (new_content, message_id)
+                (new_content, message_id),
             )
         conn.commit()
-        return Response(json.dumps({"message": "Pesan berhasil diupdate dan history setelahnya dihapus"}), status=200, mimetype='application/json')
+        return Response(
+            json.dumps(
+                {"message": "Pesan berhasil diupdate dan history setelahnya dihapus"}
+            ),
+            status=200,
+            mimetype="application/json",
+        )
     except Exception as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         print(f"❌ Error di update_message_unified: {e}")
-        return Response(json.dumps({"error": "Gagal update pesan di server"}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps({"error": "Gagal update pesan di server"}),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
+
 
 # 11. Endpoint untuk Regenerate (menghapus pesan AI terakhir)
 #    Kita bisa pake ulang endpoint DELETE, tapi kita butuh cara tau ID pesan AI terakhir.

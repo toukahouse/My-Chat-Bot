@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Ringkasan Percakapan</title>
+    <!-- Kita pake style yang sama biar seragam -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/style.css') }}">
+</head>
+<body>
+    <div class="editor-container">
+        <div class="editor-header">
+            <h1>Edit Ringkasan Percakapan</h1>
+            <!-- Tombol ini nanti dibikin pinter sama JS -->
+            <a href="#" id="back-to-chat-btn" class="back-to-chat-btn">Kembali ke Chat</a>
+        </div>
+
+        <div class="form-group">
+            <label for="summary-textarea">
+                Isi Ringkasan (Kamu bisa edit, tambah, atau hapus teks di bawah ini. Perubahan akan dipakai AI untuk respon selanjutnya.)
+            </label>
+            <!-- Area teks utama untuk ngedit ringkasan -->
+            <textarea id="summary-textarea" rows="20" placeholder="Memuat ringkasan..."></textarea>
+        </div>
+
+        <!-- Tombol gede warna ijo buat nyimpen -->
+        <button id="update-summary-btn" class="update-button">Update Ringkasan</button>
+    </div>
+
+    <!-- Jangan lupa panggil file JS-nya -->
+    <script src="{{ url_for('static', filename='assets/js/summarization-editor.js') }}"></script>
+</body>
+</html>
