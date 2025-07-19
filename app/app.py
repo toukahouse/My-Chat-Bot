@@ -230,9 +230,10 @@ def stream_generator(
         if "SummarizationError" in str(e):
             error_content = "Gagal membuat ringkasan memori. Chat tetap berjalan, tapi AI mungkin sedikit lupa. Akan dicoba lagi nanti."
             yield f"data: {json.dumps({'type': 'summary_error', 'content': error_content})}\n\n"
-        
+
         # Kirim juga error teknisnya (opsional, tapi bagus untuk debug)
         yield f"data: {json.dumps({'type': 'error', 'content': f'Terjadi masalah saat streaming: {str(e)}'})}\n\n"
+
 
 # --- Route untuk Menyajikan Halaman Utama ---
 @app.route("/")
@@ -256,17 +257,16 @@ def show_page(page_name):
 # === ENDPOINT UNTUK SUMMARIZE ===
 # === ENDPOINT UNTUK SUMMARIZE (VERSI BARU DENGAN AKUMULASI) ===
 
+# app.py
+
+
+# GANTI SELURUH FUNGSI LAMA DENGAN VERSI YANG BENAR INI
 def check_and_summarize_if_needed(conversation_id, conn):
-    """
-    Fungsi cerdas untuk memeriksa dan melakukan peringkasan secara otomatis
-    jika sudah waktunya.
-    """
-    SUMMARY_INTERVAL = 10  # Kita definisikan intervalnya di sini
+    SUMMARY_INTERVAL = 10
     print(f"🧠 Mengecek kebutuhan ringkasan untuk sesi ID: {conversation_id}...")
 
     try:
         with conn.cursor() as cur:
-            # 1. Ambil data penting dari database dalam satu kali jalan
             cur.execute(
                 "SELECT summary, last_summary_message_count FROM public.conversation WHERE id = %s",
                 (conversation_id,),
@@ -274,7 +274,7 @@ def check_and_summarize_if_needed(conversation_id, conn):
             session_data = cur.fetchone()
             if not session_data:
                 print(f"⚠️ Sesi {conversation_id} tidak ditemukan untuk peringkasan.")
-                return ""  # Kembalikan summary kosong jika sesi tidak ada
+                return ""
 
             current_summary, last_summary_count = session_data
 
@@ -284,20 +284,17 @@ def check_and_summarize_if_needed(conversation_id, conn):
             )
             current_message_count = cur.fetchone()[0]
 
-            # 2. Logika utama: Cek apakah sudah waktunya meringkas
             if current_message_count < last_summary_count + SUMMARY_INTERVAL:
                 print(
                     f"✅ Belum perlu meringkas. Pesan: {current_message_count}, Batas berikut: {last_summary_count + SUMMARY_INTERVAL}"
                 )
-                return current_summary  # Kembalikan summary yang ada sekarang
+                return current_summary
 
             print(
                 f"🔥 WAKTUNYA MERINGKAS! Pesan saat ini: {current_message_count}, Terakhir diringkas: {last_summary_count}"
             )
 
-            # 3. Ambil potongan history yang akan diringkas
             messages_to_summarize = []
-            # Kita ambil dari pesan terakhir yang diringkas sampai batas interval berikutnya
             offset = last_summary_count
             limit = SUMMARY_INTERVAL
             cur.execute(
@@ -306,32 +303,45 @@ def check_and_summarize_if_needed(conversation_id, conn):
             )
             rows = cur.fetchall()
             for row in rows:
-                # Formatnya kita sesuaikan dengan yang diharapkan fungsi summarize lama
                 messages_to_summarize.append({"role": row[0], "parts": [row[1]]})
 
             if not messages_to_summarize:
                 print(
-                    "🤔 Tidak ada pesan baru untuk diringkas, aneh. Menggunakan summary lama."
+                    "🤔 Tidak ada pesan baru untuk diringkas, menggunakan summary lama."
                 )
                 return current_summary
 
-            # 4. Panggil API Gemini untuk meringkas (mirip kode lama kamu)
-            history_text = "\n".join(
-                [f"{msg['role']}: {msg['parts'][0]}" for msg in messages_to_summarize]
-            )
-            summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
+            # Blok try-except KHUSUS untuk panggilan API
+            try:
+                history_text = "\n".join(
+                    [
+                        f"{msg['role']}: {msg['parts'][0]}"
+                        for msg in messages_to_summarize
+                    ]
+                )
+                summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
 
-            api_key_to_use = os.getenv("GEMINI_API_KEY")
-            if not api_key_to_use:
-                raise ValueError("API Key tidak ditemukan untuk meringkas.")
+                api_key_to_use = os.getenv("GEMINI_API_KEY")
+                if not api_key_to_use:
+                    raise ValueError("API Key tidak ditemukan untuk meringkas.")
 
-            client = genai.Client(api_key=api_key_to_use)
-            response = client.models.generate_content(
-                model="models/gemini-2.5-flash", contents=summarization_prompt
-            )
-            new_summary_chunk = response.text.strip() if response.text else ""
+                client = genai.Client(api_key=api_key_to_use)
+                response = client.models.generate_content(
+                    model="models/gemini-2.5-flash", contents=summarization_prompt
+                )
 
-            # 5. Gabungkan dan simpan summary baru ke database
+                if response and hasattr(response, "text") and response.text:
+                    new_summary_chunk = response.text.strip()
+                else:
+                    raise ValueError("Respons dari API Gemini kosong atau tidak valid.")
+
+            except Exception as api_error:
+                print(f"⚠️ Gagal saat memanggil API Gemini untuk meringkas: {api_error}")
+                print("Chat akan dilanjutkan dengan ringkasan yang lama.")
+                conn.rollback()
+                return current_summary
+
+            # Bagian ini HANYA akan berjalan jika 'try' di atas berhasil
             final_summary = f"{current_summary}\n\n{new_summary_chunk}".strip()
             new_last_summary_count = last_summary_count + len(messages_to_summarize)
 
@@ -339,7 +349,7 @@ def check_and_summarize_if_needed(conversation_id, conn):
                 "UPDATE public.conversation SET summary = %s, last_summary_message_count = %s WHERE id = %s",
                 (final_summary, new_last_summary_count, conversation_id),
             )
-            conn.commit()  # Simpan perubahan ke DB
+            conn.commit()
             print(
                 f"✅ Ringkasan berhasil diupdate untuk sesi {conversation_id}. Jumlah pesan ter-ringkas: {new_last_summary_count}"
             )
@@ -347,11 +357,11 @@ def check_and_summarize_if_needed(conversation_id, conn):
             return final_summary
 
     except Exception as e:
-        print(f"❌ GAGAL TOTAL di dalam fungsi check_and_summarize: {e}")
-        conn.rollback()  # Batalkan perubahan jika ada error
-        raise Exception(f"SummarizationError: Gagal meringkas di backend. Penyebab: {e}")
-    
-        return current_summary if "current_summary" in locals() else ""
+        print(f"❌ GAGAL KRITIS di luar loop API: {e}")
+        if conn:
+            conn.rollback()
+        # 'current_summary' mungkin belum terdefinisi di sini, jadi kita kasih nilai default
+        return ""
 
 
 # === ENDPOINT UTAMA UNTUK CHAT ===
@@ -794,23 +804,35 @@ def add_new_message():
             new_message_id = cur.fetchone()[0]
             cur.execute(
                 "SELECT COUNT(*) FROM public.message WHERE conversation_id = %s",
-                (session_id,)
+                (session_id,),
             )
             total_messages = cur.fetchone()[0]
             print(f"💬 Jumlah dialog saat ini di sesi {session_id}: {total_messages}")
 
         conn.commit()
-        return Response(json.dumps({
-            "new_message_id": new_message_id,
-            "total_messages": total_messages  # <-- Kita tambahkan "hadiah"-nya di sini
-        }), status=201, mimetype='application/json')
+        return Response(
+            json.dumps(
+                {
+                    "new_message_id": new_message_id,
+                    "total_messages": total_messages,  # <-- Kita tambahkan "hadiah"-nya di sini
+                }
+            ),
+            status=201,
+            mimetype="application/json",
+        )
 
     except Exception as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         print(f"❌ Error di add_new_message: {e}")
-        return Response(json.dumps({"error": "Gagal menyimpan pesan"}), status=500, mimetype='application/json')
+        return Response(
+            json.dumps({"error": "Gagal menyimpan pesan"}),
+            status=500,
+            mimetype="application/json",
+        )
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 
 # 7. Endpoint untuk MENGUPDATE ringkasan
