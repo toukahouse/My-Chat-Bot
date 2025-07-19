@@ -187,52 +187,42 @@ def stream_generator(
 
         # --- 6. Proses dan kirim hasil streaming (VERSI FINAL & TANGGUH) ---
         if response_stream is None:
-            print(
-                "❌ response_stream adalah None. Menghentikan proses untuk request ini."
+            raise ValueError(
+                "Gagal mendapatkan respon dari server AI (stream adalah None)."
             )
-            yield f"data: {json.dumps({'type': 'error', 'content': 'Gagal mendapatkan respon dari server AI.'})}\n\n"
-            return  # Hentikan fungsi generator ini sepenuhnya
 
-        try:
-            for chunk in response_stream:
-                # Cek dulu apakah chunk punya kandidat, kadang bisa kosong
-                if not chunk.candidates:
-                    # print("Chunk kosong diterima, lanjut...") # Uncomment untuk debug
-                    continue
+        # --- Bagian Proses Streaming ---
+        for chunk in response_stream:
+            if not chunk.candidates:
+                continue
+            if chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                for part in chunk.candidates[0].content.parts:
+                    if (
+                        hasattr(part, "thought")
+                        and part.thought
+                        and getattr(part, "text", None)
+                    ):
+                        data_to_send = {"type": "thought", "content": part.text}
+                        yield f"data: {json.dumps(data_to_send)}\n\n"
+                    elif getattr(part, "text", None):
+                        data_to_send = {"type": "reply", "content": part.text}
+                        yield f"data: {json.dumps(data_to_send)}\n\n"
 
-                # Kunci utama ada di sini:
-                # Kita hanya proses 'parts' jika ada.
-                if chunk.candidates[0].content and chunk.candidates[0].content.parts:
-                    for part in chunk.candidates[0].content.parts:
-                        # Cek apakah ini bagian 'thought'
-                        if (
-                            hasattr(part, "thought")
-                            and part.thought
-                            and getattr(part, "text", None)
-                        ):
-                            data_to_send = {"type": "thought", "content": part.text}
-                            yield f"data: {json.dumps(data_to_send)}\n\n"
-                        # Cek apakah ini bagian 'reply' biasa
-                        elif getattr(part, "text", None):
-                            data_to_send = {"type": "reply", "content": part.text}
-                            yield f"data: {json.dumps(data_to_send)}\n\n"
-
-        except types.InternalServerError as e:
-            # Tangkap error 500 secara spesifik
-            print(f"❌ Terjadi Internal Server Error dari API Gemini: {e}")
-            error_content = f"500 INTERNAL. {str(e)}"
-            yield f"data: {json.dumps({'type': 'error', 'content': error_content})}\n\n"
-
+    # ▼▼▼ BLOK EXCEPT UTAMA YANG DIPERBAIKI ADA DI SINI ▼▼▼
     except Exception as e:
-        # Menangkap error lain yang mungkin terjadi
-        print(f"❌ Terjadi error tak terduga DI DALAM loop streaming: {e}")
-        # Kunci: Cek apakah error ini adalah error ringkasan yang kita lempar tadi
-        if "SummarizationError" in str(e):
-            error_content = "Gagal membuat ringkasan memori. Chat tetap berjalan, tapi AI mungkin sedikit lupa. Akan dicoba lagi nanti."
-            yield f"data: {json.dumps({'type': 'summary_error', 'content': error_content})}\n\n"
+        # Menangkap SEMUA error yang mungkin terjadi, baik setup, prompt, maupun streaming
+        print(f"❌ Terjadi error di dalam stream_generator: {e}")
 
-        # Kirim juga error teknisnya (opsional, tapi bagus untuk debug)
-        yield f"data: {json.dumps({'type': 'error', 'content': f'Terjadi masalah saat streaming: {str(e)}'})}\n\n"
+        error_message_str = str(e).lower()
+        user_facing_error = f"Terjadi masalah saat streaming: {str(e)}"
+
+        if "500 internal server error" in error_message_str:
+            user_facing_error = "Waduh, server AI sedang ada gangguan internal (Error 500). Coba lagi beberapa saat."
+        elif "summarizationerror" in error_message_str:
+            # Ini mungkin tidak akan tertangkap di sini, tapi untuk jaga-jaga
+            user_facing_error = "Gagal membuat ringkasan memori. Chat tetap berjalan."
+
+        yield f"data: {json.dumps({'type': 'error', 'content': user_facing_error})}\n\n"
 
 
 # --- Route untuk Menyajikan Halaman Utama ---
@@ -261,7 +251,7 @@ def show_page(page_name):
 
 
 # GANTI SELURUH FUNGSI LAMA DENGAN VERSI YANG BENAR INI
-def check_and_summarize_if_needed(conversation_id, conn):
+def check_and_summarize_if_needed(conversation_id, conn, selected_model):
     SUMMARY_INTERVAL = 10
     print(f"🧠 Mengecek kebutuhan ringkasan untuk sesi ID: {conversation_id}...")
 
@@ -319,7 +309,7 @@ def check_and_summarize_if_needed(conversation_id, conn):
                         for msg in messages_to_summarize
                     ]
                 )
-                summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
+                summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan ringkas percakapan dengan bahasa indonesia yang gaul tanpa lu/gue gunakan nama karakter dan user. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting, moment penting, janji yang dibuat, waktu, dan tempat. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri buatkan sedetail mungkin.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
 
                 api_key_to_use = os.getenv("GEMINI_API_KEY")
                 if not api_key_to_use:
@@ -327,7 +317,7 @@ def check_and_summarize_if_needed(conversation_id, conn):
 
                 client = genai.Client(api_key=api_key_to_use)
                 response = client.models.generate_content(
-                    model="models/gemini-2.5-flash", contents=summarization_prompt
+                    model=selected_model, contents=summarization_prompt
                 )
 
                 if response and hasattr(response, "text") and response.text:
@@ -400,8 +390,11 @@ def chat():
         if conn is None:
             raise Exception("Gagal terhubung ke database untuk memulai chat.")
 
+        selected_model = request.form.get("model", "models/gemini-2.5-flash")
         # Panggil fungsi pintar kita SEBELUM melakukan hal lain
-        summary_terbaru = check_and_summarize_if_needed(int(conversation_id), conn)
+        summary_terbaru = check_and_summarize_if_needed(
+            int(conversation_id), conn, selected_model
+        )
         # --- SELESAI LOGIKA BARU ---
 
         # Ambil semua data dari request.form (seperti sebelumnya)
@@ -412,7 +405,7 @@ def chat():
         memory_entries = json.loads(request.form.get("memory", "[]"))
         world_info_entries = json.loads(request.form.get("world_info", "[]"))
         npc_entries = json.loads(request.form.get("npcs", "[]"))
-        selected_model = request.form.get("model", "models/gemini-2.5-flash")
+
         custom_api_key = request.form.get("api_key", None)
         image_part = None
         image_uri_to_return = None

@@ -296,24 +296,41 @@ function createMessageBubble(sender, text, messageId = null, sequenceNumber = nu
     // Tambahkan data-id untuk mempermudah pengambilan ID numerik
     messageDiv.dataset.id = messageId ? messageId.replace('msg-', '') : '';
 
-    let menuItems = '';
-    const sequenceInfoItem = sequenceNumber
-        ? `<div class="menu-item-info">Pesan #${sequenceNumber}</div>`
-        : '';
+    let menuHtml = '';
     if (isError) {
-        menuItems = `<button class="delete-error">🗑️ Hapus</button>`;
-    } else if (sender === 'user') {
-        menuItems = `
-            <button class="edit">✏️ Edit</button>
-            <button class="resend">🔄 Kirim Ulang</button>
-            <button class="delete">🗑️ Hapus</button>
-            ${sequenceInfoItem}
+        // Jika ini pesan error, HANYA buat tombol hapus. Titik.
+        menuHtml = `
+            <button class="message-menu-button">⋮</button>
+            <div class="message-dropdown-menu hidden">
+                <button class="delete-error">🗑️ Hapus</button>
+            </div>
         `;
-    } else { // Ini untuk AI/model
-        menuItems = `
-            <button class="regenerate">✨ Regenerate</button>
-            <button class="delete">🗑️ Hapus</button>
-            ${sequenceInfoItem}
+    } else {
+        // Jika ini pesan normal, baru kita buat menu yang lengkap
+        const sequenceInfoItem = sequenceNumber
+            ? `<div class="menu-item-info">Pesan #${sequenceNumber}</div>`
+            : '';
+
+        let menuItems = '';
+        if (sender === 'user') {
+            menuItems = `
+                <button class="edit">✏️ Edit</button>
+                <button class="resend">🔄 Kirim Ulang</button>
+                <button class="delete">🗑️ Hapus</button>
+            `;
+        } else { // untuk AI/model
+            menuItems = `
+                <button class="regenerate">✨ Regenerate</button>
+                <button class="delete">🗑️ Hapus</button>
+            `;
+        }
+
+        menuHtml = `
+            <button class="message-menu-button">⋮</button>
+            <div class="message-dropdown-menu hidden">
+                ${menuItems}
+                ${sequenceInfoItem}
+            </div>
         `;
     }
 
@@ -322,15 +339,13 @@ function createMessageBubble(sender, text, messageId = null, sequenceNumber = nu
         <div class="message-content">
             <span class="message-sender">${senderName}</span>
             <div class="message-text"><p>${text}</p></div>
-            <button class="message-menu-button">⋮</button>
-            <div class="message-dropdown-menu hidden">
-                ${menuItems}
-            </div>
+            ${menuHtml}
         </div>
     `;
+    // ▲▲▲ SELESAI PERUBAHAN ▲▲▲
 
     chatMessages.appendChild(messageDiv);
-    return messageDiv; // Fungsi ini hanya membuat dan mengembalikan elemen
+    return messageDiv;
 }
 
 // TAMBAHKAN FUNGSI BARU INI
@@ -955,7 +970,12 @@ async function getAiResponse(userMessage, fileToSend = null) {
             indicatorBubble.id = `msg-${newDbId}`;
             indicatorBubble.dataset.id = newDbId;
             chatHistory.push({ id: `msg-${newDbId}`, role: 'model', parts: [accumulatedResponse] });
-
+            const currentTotalMessages = chatHistory.length;
+            const sequenceInfoItem = `<div class="menu-item-info">Pesan #${currentTotalMessages}</div>`;
+            const dropdownMenuDiv = indicatorBubble.querySelector('.message-dropdown-menu');
+            if (dropdownMenuDiv) {
+                dropdownMenuDiv.insertAdjacentHTML('beforeend', sequenceInfoItem);
+            }
             if (finalThoughts) {
                 indicatorBubble.dataset.thoughts = finalThoughts;
                 addDropdownIcon(indicatorBubble);
@@ -1048,7 +1068,12 @@ async function sendMessage(fileToResend = null) {
         if (msgIndex > -1) chatHistory[msgIndex].id = newIdString;
 
         console.log(`💬 Pesan USER disimpan ke DB dengan ID: ${newDbId}`);
-
+        const currentTotalMessages = chatHistory.length;
+        const sequenceInfoItem = `<div class="menu-item-info">Pesan #${currentTotalMessages}</div>`;
+        const dropdownMenuDiv = userBubble.querySelector('.message-dropdown-menu');
+        if (dropdownMenuDiv) {
+            dropdownMenuDiv.insertAdjacentHTML('beforeend', sequenceInfoItem);
+        }
         await getAiResponse(messageText, imageFile);
 
     } catch (error) {
