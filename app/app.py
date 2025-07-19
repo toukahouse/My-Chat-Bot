@@ -252,7 +252,7 @@ def show_page(page_name):
 
 # GANTI SELURUH FUNGSI LAMA DENGAN VERSI YANG BENAR INI
 def check_and_summarize_if_needed(conversation_id, conn, selected_model):
-    SUMMARY_INTERVAL = 10
+    SUMMARY_INTERVAL = 11
     print(f"🧠 Mengecek kebutuhan ringkasan untuk sesi ID: {conversation_id}...")
 
     try:
