@@ -100,7 +100,7 @@ async function loadChatHistory() {
             // KUNCI UTAMA ADA DI SINI
             for (const msg of messagesFromServer) {
                 // Buat bubble dulu
-                const bubble = createMessageBubble(msg.role, msg.content, `msg-${msg.db_id}`);
+                const bubble = createMessageBubble(msg.role, msg.content, `msg-${msg.db_id}`, msg.sequence_number);
                 const messageTextContainer = bubble.querySelector('.message-text');
 
                 // CEK APAKAH PESAN INI PUNYA GAMBAR
@@ -279,7 +279,7 @@ function convertHtmlToMarkdown(htmlContent) {
     return tempDiv.textContent;
 }
 
-function createMessageBubble(sender, text, messageId = null, isError = false) {
+function createMessageBubble(sender, text, messageId = null, sequenceNumber = null, isError = false) {
     const savedCharData = localStorage.getItem('characterData');
     const characterData = savedCharData ? JSON.parse(savedCharData) : { name: "Hana" };
     const savedUserData = localStorage.getItem('userData');
@@ -297,19 +297,23 @@ function createMessageBubble(sender, text, messageId = null, isError = false) {
     messageDiv.dataset.id = messageId ? messageId.replace('msg-', '') : '';
 
     let menuItems = '';
+    const sequenceInfoItem = sequenceNumber
+        ? `<div class="menu-item-info">Pesan #${sequenceNumber}</div>`
+        : '';
     if (isError) {
-        // Jika ini pesan error, hanya ada tombol hapus
         menuItems = `<button class="delete-error">🗑️ Hapus</button>`;
     } else if (sender === 'user') {
         menuItems = `
             <button class="edit">✏️ Edit</button>
             <button class="resend">🔄 Kirim Ulang</button>
             <button class="delete">🗑️ Hapus</button>
+            ${sequenceInfoItem}
         `;
-    } else {
+    } else { // Ini untuk AI/model
         menuItems = `
             <button class="regenerate">✨ Regenerate</button>
             <button class="delete">🗑️ Hapus</button>
+            ${sequenceInfoItem}
         `;
     }
 

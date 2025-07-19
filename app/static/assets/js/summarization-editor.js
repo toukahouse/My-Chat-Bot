@@ -5,6 +5,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const backButton = document.getElementById('back-to-chat-btn');
     const summaryTextarea = document.getElementById('summary-textarea');
     const updateButton = document.getElementById('update-summary-btn');
+    const startMessageInput = document.getElementById('start-message');
+    const endMessageInput = document.getElementById('end-message');
+    const manualSummaryBtn = document.getElementById('manual-summary-btn');
+    const btnLoader = manualSummaryBtn.querySelector('.btn-loader');
+    const btnText = manualSummaryBtn.querySelector('.btn-text');
 
     // 2. Ambil session_id dari URL, ini KUNCINYA
     const urlParams = new URLSearchParams(window.location.search);
@@ -90,7 +95,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
+    async function doManualSummary() {
+        const startNum = parseInt(startMessageInput.value);
+        const endNum = parseInt(endMessageInput.value);
+
+        // Validasi input di sisi klien
+        if (isNaN(startNum) || isNaN(endNum) || startNum <= 0 || endNum < startNum) {
+            showToastNotification('Mohon masukkan rentang nomor pesan yang valid.', 'error');
+            return;
+        }
+
+        // Aktifkan mode loading
+        manualSummaryBtn.disabled = true;
+        btnText.style.visibility = 'hidden';
+        btnLoader.classList.remove('hidden');
+
+        try {
+            const response = await fetch(`/api/sessions/${sessionId}/summarize-manual`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start: startNum, end: endNum }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Terjadi kesalahan tidak diketahui.');
+            }
+
+            // Jika berhasil, update textarea dengan ringkasan LENGKAP yang baru
+            summaryTextarea.value = result.new_full_summary;
+            showToastNotification('Ringkasan manual berhasil ditambahkan!', 'success');
+            // Kosongkan inputan
+            startMessageInput.value = '';
+            endMessageInput.value = '';
+
+        } catch (error) {
+            console.error("Error during manual summary:", error);
+            showToastNotification(`Error: ${error.message}`, 'error');
+        } finally {
+            // Matikan mode loading, apapun yang terjadi
+            manualSummaryBtn.disabled = false;
+            btnText.style.visibility = 'visible';
+            btnLoader.classList.add('hidden');
+        }
+    }
+
     // 6. Sambungkan fungsi ke tombol dan muat data pertama kali
     updateButton.addEventListener('click', updateSummary);
-    fetchSummary(); // Panggil fungsi ini pas halaman pertama kali dibuka
+    manualSummaryBtn.addEventListener('click', doManualSummary); // <-- SAMBUNGKAN TOMBOL BARU
+    fetchSummary();
 });

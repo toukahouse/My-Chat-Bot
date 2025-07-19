@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <!-- Kita pake style yang sama biar seragam -->
     <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/style.css') }}">
 </head>
+
 <body>
     <div class="editor-container">
         <div class="editor-header">
@@ -17,12 +19,29 @@
 
         <div class="form-group">
             <label for="summary-textarea">
-                Isi Ringkasan (Kamu bisa edit, tambah, atau hapus teks di bawah ini. Perubahan akan dipakai AI untuk respon selanjutnya.)
+                Isi Ringkasan (Kamu bisa edit, tambah, atau hapus teks di bawah ini. Perubahan akan dipakai AI untuk
+                respon selanjutnya.)
             </label>
             <!-- Area teks utama untuk ngedit ringkasan -->
             <textarea id="summary-textarea" rows="20" placeholder="Memuat ringkasan..."></textarea>
         </div>
-
+        <div class="manual-summary-section">
+            <h3 class="manual-summary-title">Ringkas Manual Sebagian Percakapan</h3>
+            <div class="manual-summary-inputs">
+                <div class="input-group">
+                    <label for="start-message">Dari Pesan No:</label>
+                    <input type="number" id="start-message" placeholder="Contoh: 42">
+                </div>
+                <div class="input-group">
+                    <label for="end-message">Sampai Pesan No:</label>
+                    <input type="number" id="end-message" placeholder="Contoh: 55">
+                </div>
+            </div>
+            <button id="manual-summary-btn" class="manual-summary-button">
+                <span class="btn-text">Buat Ringkasan Manual</span>
+                <span class="btn-loader hidden"></span>
+            </button>
+        </div>
         <!-- Tombol gede warna ijo buat nyimpen -->
         <button id="update-summary-btn" class="update-button">Update Ringkasan</button>
     </div>
@@ -30,4 +49,5 @@
     <!-- Jangan lupa panggil file JS-nya -->
     <script src="{{ url_for('static', filename='assets/js/summarization-editor.js') }}"></script>
 </body>
+
 </html>

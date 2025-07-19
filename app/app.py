@@ -733,7 +733,8 @@ def get_messages_for_session(session_id):
             messages_from_db = cur.fetchall()
 
             messages_list = []
-            for row in messages_from_db:
+            # ▼▼▼ MODIFIKASI LOOP INI DENGAN ENUMERATE ▼▼▼
+            for index, row in enumerate(messages_from_db, start=1):
                 messages_list.append(
                     {
                         "db_id": row[0],
@@ -742,6 +743,7 @@ def get_messages_for_session(session_id):
                         "thoughts": row[3],
                         "imageData": row[4],
                         "timestamp": row[5].isoformat(),
+                        "sequence_number": index,  # <-- TAMBAHKAN DATA BARU INI
                     }
                 )
 
@@ -833,6 +835,104 @@ def add_new_message():
     finally:
         if conn:
             conn.close()
+
+
+# app.py
+
+
+# ▼▼▼ TAMBAHKAN ENDPOINT BARU INI ▼▼▼
+@app.route("/api/sessions/<int:session_id>/summarize-manual", methods=["POST"])
+def summarize_manual_chunk(session_id):
+    conn = None
+    try:
+        data = request.json
+        start_index = data.get("start")
+        end_index = data.get("end")
+
+        # Validasi input
+        if (
+            not all([isinstance(start_index, int), isinstance(end_index, int)])
+            or start_index <= 0
+            or end_index < start_index
+        ):
+            return Response(
+                json.dumps({"error": "Nomor pesan tidak valid."}), status=400
+            )
+
+        conn = get_db_connection()
+        if conn is None:
+            return Response(json.dumps({"error": "Koneksi DB gagal"}), status=503)
+
+        with conn.cursor() as cur:
+            # Ambil pesan sesuai rentang nomor urut (ingat, nomor urut = offset + 1)
+            offset = start_index - 1
+            limit = (end_index - start_index) + 1
+            cur.execute(
+                "SELECT role, content FROM public.message WHERE conversation_id = %s ORDER BY timestamp ASC LIMIT %s OFFSET %s",
+                (session_id, limit, offset),
+            )
+            rows = cur.fetchall()
+
+            if not rows:
+                return Response(
+                    json.dumps(
+                        {"error": "Tidak ada pesan ditemukan pada rentang tersebut."}
+                    ),
+                    status=404,
+                )
+
+            # Panggil Gemini untuk meringkas
+            history_text = "\n".join([f"{row[0]}: {row[1]}" for row in rows])
+            summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
+
+            api_key_to_use = os.getenv("GEMINI_API_KEY")
+            client = genai.Client(api_key=api_key_to_use)
+            response = client.models.generate_content(
+                model="models/gemini-2.5-flash", contents=summarization_prompt
+            )
+
+            new_summary_chunk = (
+                response.text.strip()
+                if response and hasattr(response, "text") and response.text
+                else None
+            )
+            if not new_summary_chunk:
+                return Response(
+                    json.dumps({"error": "Gagal membuat ringkasan dari API AI."}),
+                    status=500,
+                )
+
+            # Ambil ringkasan lama dan gabungkan dengan yang baru
+            cur.execute(
+                "SELECT summary FROM public.conversation WHERE id = %s", (session_id,)
+            )
+            current_summary = cur.fetchone()[0] or ""
+
+            final_summary = f"{current_summary}\n\n--- Ringkasan Manual ({start_index}-{end_index}) ---\n{new_summary_chunk}".strip()
+
+            # Update ke database
+            cur.execute(
+                "UPDATE public.conversation SET summary = %s WHERE id = %s",
+                (final_summary, session_id),
+            )
+            conn.commit()
+
+        # Kirim kembali ringkasan LENGKAP yang sudah terupdate
+        return Response(json.dumps({"new_full_summary": final_summary}), status=200)
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di summarize_manual_chunk: {e}")
+        return Response(
+            json.dumps({"error": f"Terjadi kesalahan di server: {e}"}), status=500
+        )
+    finally:
+        if conn:
+            conn.close()
+
+
+# ▲▲▲ SELESAI ENDPOINT BARU ▲▲▲
 
 
 # 7. Endpoint untuk MENGUPDATE ringkasan

@@ -885,9 +885,12 @@ body {
 /* 2. Beri lebar minimum pada area edit */
 /* 2. Atur lebar area edit agar fleksibel */
 .message.is-editing .edit-area {
-    width: 60vw; /* Lebarnya 60% dari lebar viewport/layar */
-    max-width: 650px; /* Lebar maksimal 650px (untuk layar besar) */
-    min-width: 250px; /* Lebar minimal 250px (untuk layar kecil) */
+    width: 60vw;
+    /* Lebarnya 60% dari lebar viewport/layar */
+    max-width: 650px;
+    /* Lebar maksimal 650px (untuk layar besar) */
+    min-width: 250px;
+    /* Lebar minimal 250px (untuk layar kecil) */
 }
 
 .message-text .edit-area textarea:focus {
@@ -1490,4 +1493,120 @@ a.card-link-wrapper {
 .toast-notification.success {
     background-color: #4CAF50;
     /* Hijau */
+}
+
+.menu-item-info {
+    padding: 10px;
+    font-size: 0.85rem;
+    color: #8e9297;
+    /* Warna abu-abu redup */
+    text-align: center;
+    border-top: 1px solid #2b2d31;
+    /* Garis pemisah tipis */
+    margin-top: 5px;
+    padding-top: 8px;
+    cursor: default;
+    /* Kursor biasa, menandakan tidak bisa diklik */
+    user-select: none;
+    /* Biar teksnya gak bisa di-highlight */
+}
+
+/* static/assets/css/style.css */
+
+/* Gaya untuk Fitur Ringkasan Manual */
+.manual-summary-section {
+    margin-top: 30px;
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: #292b2f;
+    border-radius: 8px;
+    border: 1px solid #202225;
+}
+
+.manual-summary-title {
+    text-align: center;
+    color: #ffffff;
+    margin-bottom: 20px;
+    font-size: 1.1rem;
+}
+
+.manual-summary-inputs {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.manual-summary-inputs .input-group {
+    flex: 1;
+}
+
+.manual-summary-inputs label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    color: #b9bbbe;
+}
+
+.manual-summary-inputs input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    background-color: #202225;
+    border: 1px solid #40444b;
+    border-radius: 5px;
+    color: #dcddde;
+    font-size: 1rem;
+}
+
+.manual-summary-button {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: bold;
+    color: #ffffff;
+    background-color: #7289da;
+    /* Biru Discord */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    position: relative;
+    min-height: 46px;
+    /* Tinggi minimum untuk loading */
+}
+
+.manual-summary-button:hover {
+    background-color: #677bc4;
+}
+
+.manual-summary-button:disabled {
+    background-color: #565f8a;
+    cursor: not-allowed;
+}
+
+/* Indikator Loading di Tombol */
+.btn-loader {
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.btn-loader.hidden {
+    display: none;
+}
+
+.manual-summary-button.is-loading .btn-text {
+    visibility: hidden;
+}
+
+@keyframes spin {
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
 }
