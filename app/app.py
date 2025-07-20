@@ -307,14 +307,44 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
                     ]
                 )
                 summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan ringkas percakapan dengan bahasa indonesia yang gaul tanpa lu/gue gunakan nama karakter dan user. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting, moment penting, janji yang dibuat, waktu, dan tempat. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri buatkan sedetail mungkin.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
-
+                print("=============================================")
+                print("🕵️  MENGINTIP PROMPT YANG DIKIRIM KE GEMINI 🕵️")
+                print("=============================================")
+                print(summarization_prompt)
+                print("=============================================")
+                print(f"Panjang Karakter Prompt: {len(summarization_prompt)}")
+                print("=============================================")
                 api_key_to_use = os.getenv("GEMINI_API_KEY")
                 if not api_key_to_use:
                     raise ValueError("API Key tidak ditemukan untuk meringkas.")
 
                 client = genai.Client(api_key=api_key_to_use)
+                summarization_config = types.GenerateContentConfig(
+                safety_settings=[
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    ),
+                ]
+            )
+
+            # 2. Panggil API dengan parameter 'config', bukan 'generation_config'.
                 response = client.models.generate_content(
-                    model=selected_model, contents=summarization_prompt
+                    model=selected_model,
+                    contents=[summarization_prompt],
+                    config=summarization_config  # <-- INI DIA KUNCI UTAMANYA!
                 )
 
                 if response and hasattr(response, "text") and response.text:
@@ -868,12 +898,12 @@ def summarize_manual_chunk(session_id):
 
             # Panggil Gemini untuk meringkas
             history_text = "\n".join([f"{row[0]}: {row[1]}" for row in rows])
-            summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan dengan bahasa indonesia yang gaul tanpa gue / lo. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting seperti janji, moment penting, waktu, dan tempat. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
+            summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan dengan bahasa indonesia yang gaul tanpa gue / lo. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting seperti janji, moment penting, waktu, dan tempat saat roleplay. Jawabanmu HANYA BOLEH berisi paragraf ringkasan dari roleplay, buatkan sedetail mungkin dan sepanjang yang diperlukan.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
 
             api_key_to_use = os.getenv("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key_to_use)
             response = client.models.generate_content(
-                model=selected_model, contents=summarization_prompt
+                model=selected_model, contents=[summarization_prompt]
             )
 
             new_summary_chunk = (
