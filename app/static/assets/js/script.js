@@ -236,9 +236,9 @@ async function displayGreeting(greetingText) {
         });
         const data = await response.json();
         const newDbId = data.new_message_id;
-        if (imageDataForApi) {
-            clearPendingImageFromStorage();
-        }
+        // if (imageDataForApi) {
+        //     clearPendingImageFromStorage();
+        // }
         // Update ID bubble dan history array dengan ID dari database
         greetingBubble.id = `msg-${newDbId}`;
         chatHistory.push({ id: `msg-${newDbId}`, role: 'model', parts: [greetingText] });
@@ -983,6 +983,7 @@ async function getAiResponse(userMessage, fileToSend = null) {
         } else {
             indicatorBubble.remove(); // Hapus kalo AI gak jawab apa-apa
         }
+        await triggerAutoSummary(currentConversationId);
 
     } catch (error) {
         if (timerInterval) clearInterval(timerInterval);
@@ -1086,6 +1087,53 @@ async function sendMessage(fileToResend = null) {
         // Bagian terpenting: set isReplying ke false dan panggil manajer
         isReplying = false;
         updateSendButtonState(); // <-- PANGGIL MANAJER DI AKHIR
+    }
+}
+
+// Fungsi baru untuk trigger ringkasan dari sisi client
+// GANTI TOTAL FUNGSI INI
+async function triggerAutoSummary(sessionId) {
+    if (!sessionId) return;
+
+    console.log("🚀 Diam-diam memeriksa kebutuhan ringkasan...");
+    // HAPUS notifikasi "Memeriksa..." dari sini.
+
+    try {
+        const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
+        const selectedModel = apiSettings.model || 'models/gemini-2.5-flash';
+
+        const response = await fetch(`/api/sessions/${sessionId}/trigger-summary`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: selectedModel })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            // Jika server error (500, 503, dll), baru kita kasih tau.
+            throw new Error(result.error || 'Gagal trigger ringkasan.');
+        }
+
+        // --- INI LOGIKA BARUNYA ---
+        // Kita HANYA bereaksi jika statusnya BUKAN 'noop' (no operation).
+        if (result.status === 'success') {
+            // Tampilkan notifikasi HANYA jika berhasil.
+            showToastNotification(result.message, 'success');
+        } else if (result.status === 'error') {
+            // Tampilkan notifikasi HANYA jika gagal.
+            showToastNotification(result.message, 'error');
+        }
+        // Jika statusnya 'noop', kita tidak melakukan apa-apa.
+        // Console log di bawah ini opsional, bagus untuk debugging.
+        else {
+            console.log(`✅ Pengecekan ringkasan selesai: ${result.message}`);
+        }
+
+    } catch (error) {
+        console.error("Gagal total saat trigger ringkasan otomatis:", error);
+        // Tampilkan notifikasi hanya jika ada error koneksi atau sejenisnya.
+        showToastNotification(`Gagal menghubungi server untuk ringkasan: ${error.message}`, 'error');
     }
 }
 

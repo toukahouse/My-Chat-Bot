@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const endNum = parseInt(endMessageInput.value);
 
         // Validasi input di sisi klien
-        if (isNaN(startNum) || isNaN(endNum) || startNum <= 0 || endNum < startNum) {
+        if (isNaN(startNum) || isNaN(endNum) || startNum < 1 || endNum < startNum) {
             showToastNotification('Mohon masukkan rentang nomor pesan yang valid.', 'error');
             return;
         }

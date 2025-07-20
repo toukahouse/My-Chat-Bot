@@ -248,6 +248,7 @@ def show_page(page_name):
 
 
 # GANTI SELURUH FUNGSI LAMA DENGAN VERSI YANG BENAR INI
+# GANTI TOTAL FUNGSI INI DI app.py
 def check_and_summarize_if_needed(conversation_id, conn, selected_model):
     SUMMARY_INTERVAL = 11
     print(f"🧠 Mengecek kebutuhan ringkasan untuk sesi ID: {conversation_id}...")
@@ -260,10 +261,11 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
             )
             session_data = cur.fetchone()
             if not session_data:
-                print(f"⚠️ Sesi {conversation_id} tidak ditemukan untuk peringkasan.")
-                return ""
+                return {"status": "noop", "message": "Sesi tidak ditemukan."}
 
             current_summary, last_summary_count = session_data
+            if current_summary is None:
+                current_summary = ""
 
             cur.execute(
                 "SELECT COUNT(*) FROM public.message WHERE conversation_id = %s",
@@ -271,34 +273,38 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
             )
             current_message_count = cur.fetchone()[0]
 
+            start_num = last_summary_count + 1
+
             if current_message_count < last_summary_count + SUMMARY_INTERVAL:
                 print(
                     f"✅ Belum perlu meringkas. Pesan: {current_message_count}, Batas berikut: {last_summary_count + SUMMARY_INTERVAL}"
                 )
-                return current_summary
+                return {"status": "noop", "message": "Belum perlu meringkas."}
 
             print(
                 f"🔥 WAKTUNYA MERINGKAS! Pesan saat ini: {current_message_count}, Terakhir diringkas: {last_summary_count}"
             )
 
-            messages_to_summarize = []
+            # Ambil semua pesan yang belum diringkas
+            limit = current_message_count - last_summary_count
             offset = last_summary_count
-            limit = SUMMARY_INTERVAL
+            end_num = last_summary_count + limit
+
             cur.execute(
                 "SELECT role, content FROM public.message WHERE conversation_id = %s ORDER BY timestamp ASC LIMIT %s OFFSET %s",
                 (conversation_id, limit, offset),
             )
             rows = cur.fetchall()
-            for row in rows:
-                messages_to_summarize.append({"role": row[0], "parts": [row[1]]})
+            messages_to_summarize = [
+                {"role": row[0], "parts": [row[1]]} for row in rows
+            ]
 
             if not messages_to_summarize:
-                print(
-                    "🤔 Tidak ada pesan baru untuk diringkas, menggunakan summary lama."
-                )
-                return current_summary
+                return {
+                    "status": "noop",
+                    "message": "Tidak ada pesan baru untuk diringkas.",
+                }
 
-            # Blok try-except KHUSUS untuk panggilan API
             try:
                 history_text = "\n".join(
                     [
@@ -307,58 +313,63 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
                     ]
                 )
                 summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan ringkas percakapan dengan bahasa indonesia yang gaul tanpa lu/gue gunakan nama karakter dan user. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting, moment penting, janji yang dibuat, waktu, dan tempat. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri buatkan sedetail mungkin.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
-                print("=============================================")
-                print("🕵️  MENGINTIP PROMPT YANG DIKIRIM KE GEMINI 🕵️")
-                print("=============================================")
-                print(summarization_prompt)
-                print("=============================================")
-                print(f"Panjang Karakter Prompt: {len(summarization_prompt)}")
-                print("=============================================")
-                api_key_to_use = os.getenv("GEMINI_API_KEY")
-                if not api_key_to_use:
-                    raise ValueError("API Key tidak ditemukan untuk meringkas.")
 
+                api_key_to_use = os.getenv("GEMINI_API_KEY")
                 client = genai.Client(api_key=api_key_to_use)
                 summarization_config = types.GenerateContentConfig(
-                safety_settings=[
-                    types.SafetySetting(
-                        category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                    ),
-                    types.SafetySetting(
-                        category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                    ),
-                    types.SafetySetting(
-                        category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                    ),
-                    types.SafetySetting(
-                        category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                    ),
-                ]
-            )
+                    safety_settings=[
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                        ),
+                        types.SafetySetting(
+                            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                        ),
+                    ]
+                )
 
-            # 2. Panggil API dengan parameter 'config', bukan 'generation_config'.
+                # 2. Panggil API dengan parameter 'config', bukan 'generation_config'.
                 response = client.models.generate_content(
                     model=selected_model,
                     contents=[summarization_prompt],
-                    config=summarization_config  # <-- INI DIA KUNCI UTAMANYA!
+                    config=summarization_config,  # <-- INI DIA KUNCI UTAMANYA!
                 )
 
-                if response and hasattr(response, "text") and response.text:
+                # INI PERBAIKAN PENTING: Paksa resolve generator jika ada
+                # Dan ambil teksnya dengan aman
+
+                if response and hasattr(response, 'text') and response.text:
                     new_summary_chunk = response.text.strip()
                 else:
+                    # Jika respons aneh (kosong, diblokir), sengaja lempar error agar ditangkap.
+                    print(f"🔎 Investigasi Respons API Gagal: {response}")
                     raise ValueError("Respons dari API Gemini kosong atau tidak valid.")
 
             except Exception as api_error:
                 print(f"⚠️ Gagal saat memanggil API Gemini untuk meringkas: {api_error}")
-                print("Chat akan dilanjutkan dengan ringkasan yang lama.")
-                conn.rollback()
-                return current_summary
+                print("❗️ Melewati chunk ini dan update counter untuk mencegah macet.")
+                new_last_summary_count = last_summary_count + len(messages_to_summarize)
+                cur.execute(
+                    "UPDATE public.conversation SET last_summary_message_count = %s WHERE id = %s",
+                    (new_last_summary_count, conversation_id),
+                )
+                conn.commit()
+                print(f"📈 Counter diupdate ke {new_last_summary_count} setelah gagal.")
+                return {
+                    "status": "error",
+                    "message": f"Gagal meringkas otomatis. Gunakan fitur manual untuk dialog nomor {start_num}-{end_num}.",
+                }
 
-            # Bagian ini HANYA akan berjalan jika 'try' di atas berhasil
+            # Jika berhasil
             final_summary = f"{current_summary}\n\n{new_summary_chunk}".strip()
             new_last_summary_count = last_summary_count + len(messages_to_summarize)
 
@@ -367,18 +378,20 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
                 (final_summary, new_last_summary_count, conversation_id),
             )
             conn.commit()
-            print(
-                f"✅ Ringkasan berhasil diupdate untuk sesi {conversation_id}. Jumlah pesan ter-ringkas: {new_last_summary_count}"
-            )
-
-            return final_summary
+            print(f"✅ Ringkasan berhasil diupdate untuk sesi {conversation_id}.")
+            return {
+                "status": "success",
+                "message": f"Ringkasan dialog {start_num}-{end_num} berhasil dibuat!",
+            }
 
     except Exception as e:
-        print(f"❌ GAGAL KRITIS di luar loop API: {e}")
+        print(f"❌ GAGAL KRITIS di fungsi check_and_summarize: {e}")
         if conn:
             conn.rollback()
-        # 'current_summary' mungkin belum terdefinisi di sini, jadi kita kasih nilai default
-        return ""
+        return {
+            "status": "error",
+            "message": "Terjadi kesalahan kritis di server saat meringkas.",
+        }
 
 
 # === ENDPOINT UTAMA UNTUK CHAT ===
@@ -393,38 +406,25 @@ def chat():
 
     # Kita butuh conversation_id di awal untuk logika ringkasan
     # Kita ambil dari history pesan terakhir, ini asumsi yang aman.
-    temp_history = json.loads(request.form.get("history", "[]"))
-    if not temp_history:
-        # Jika history kosong (pesan pertama), tidak mungkin ada conversation_id
-        # Kita butuh frontend mengirimkannya secara eksplisit.
-        # Untuk sekarang kita lanjutkan, tapi ini area untuk perbaikan nanti.
-        # Mari kita coba ambil dari form secara langsung.
-        conversation_id = request.form.get("conversation_id")
-        if not conversation_id:
-            return Response(
-                json.dumps(
-                    {"error": "conversation_id tidak ditemukan di request awal"}
-                ),
-                status=400,
-            )
-    else:
-        conversation_id = request.form.get("conversation_id")
+    # temp_history = json.loads(request.form.get("history", "[]"))
+    conversation_id = request.form.get("conversation_id")  # Ambil langsung dari form
+
+    if not conversation_id:
+        # Jika tidak ada ID sama sekali, ini adalah error.
+        return Response(
+            json.dumps({"error": "conversation_id tidak ditemukan di request"}),
+            status=400,
+        )
 
     conn = None  # Definisikan di luar try
     try:
-        # --- LOGIKA BARU DIMULAI DI SINI ---
+        # --- DAPATKAN KONEKSI DB DI AWAL ---
         conn = get_db_connection()
         if conn is None:
+            # Jika koneksi gagal, langsung hentikan dengan error yang jelas.
             raise Exception("Gagal terhubung ke database untuk memulai chat.")
 
-        selected_model = request.form.get("model", "models/gemini-2.5-flash")
-        # Panggil fungsi pintar kita SEBELUM melakukan hal lain
-        summary_terbaru = check_and_summarize_if_needed(
-            int(conversation_id), conn, selected_model
-        )
-        # --- SELESAI LOGIKA BARU ---
-
-        # Ambil semua data dari request.form (seperti sebelumnya)
+        # --- AMBIL SEMUA DATA DARI FORM ---
         user_message = request.form.get("message")
         history = json.loads(request.form.get("history", "[]"))
         character_info = json.loads(request.form.get("character", "{}"))
@@ -432,7 +432,7 @@ def chat():
         memory_entries = json.loads(request.form.get("memory", "[]"))
         world_info_entries = json.loads(request.form.get("world_info", "[]"))
         npc_entries = json.loads(request.form.get("npcs", "[]"))
-
+        selected_model = request.form.get("model", "models/gemini-2.5-flash")
         custom_api_key = request.form.get("api_key", None)
         image_part = None
         image_uri_to_return = None
@@ -477,7 +477,18 @@ def chat():
                 print(f"❌ Gagal membuat Part dari URI: {e}")
                 image_part = None
 
-        # Panggil stream_generator dengan summary TERBARU
+        summary = ""
+        # Kita sudah pastikan 'conn' tidak None di atas, jadi aman untuk langsung pakai.
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT summary FROM public.conversation WHERE id = %s",
+                (int(conversation_id),),
+            )
+            result = cur.fetchone()
+            if result:
+                summary = result[0] or ""
+
+        # Panggil stream_generator dengan SEMUA argumen yang benar
         return Response(
             stream_generator(
                 image_part,
@@ -489,9 +500,9 @@ def chat():
                 memory_entries,
                 world_info_entries,
                 npc_entries,
-                summary_terbaru,  # <-- GUNAKAN SUMMARY DARI FUNGSI PINTAR KITA
+                summary,  # <-- Ini summary yang baru kita ambil
                 selected_model,
-                custom_api_key,
+                custom_api_key,  # <-- Argumen ini tadinya kelewat
             ),
             mimetype="text/event-stream",
         )  # <-- PERHATIKAN POSISI KURUNG TUTUP INI
@@ -851,7 +862,37 @@ def add_new_message():
             conn.close()
 
 
-# app.py
+# Endpoint BARU untuk menjalankan ringkasan otomatis
+@app.route("/api/sessions/<int:session_id>/trigger-summary", methods=["POST"])
+def trigger_summary_check(session_id):
+    conn = None
+    try:
+        data = request.json
+        selected_model = data.get("model", "models/gemini-2.5-flash")
+        conn = get_db_connection()
+        if conn is None:
+            return Response(
+                json.dumps({"status": "error", "message": "Koneksi DB gagal"}),
+                status=503,
+            )
+
+        # Panggil fungsi dan tangkap hasilnya
+        summary_result = check_and_summarize_if_needed(session_id, conn, selected_model)
+
+        # KEMBALIKAN HASIL APA ADANYA DARI FUNGSI. INI PENTING.
+        return Response(json.dumps(summary_result), status=200)
+
+    except Exception as e:
+        print(f"❌ Error di trigger_summary_check: {e}")
+        return Response(
+            json.dumps(
+                {"status": "error", "message": f"Terjadi kesalahan di server: {str(e)}"}
+            ),
+            status=500,
+        )
+    finally:
+        if conn:
+            conn.close()
 
 
 # ▼▼▼ TAMBAHKAN ENDPOINT BARU INI ▼▼▼
