@@ -71,9 +71,6 @@ function clearPendingImageFromStorage() {
     console.log(`🖼️ 'Laci' gambar untuk sesi ${currentConversationId} sudah dibersihkan.`);
 }
 
-// ▲▲▲ SELESAI BAGIAN 1 ▲▲▲
-
-// GANTI TOTAL FUNGSI loadChatHistory DENGAN VERSI INI
 async function loadChatHistory() {
     chatMessages.innerHTML = '';
     chatHistory = [];
@@ -1090,50 +1087,51 @@ async function sendMessage(fileToResend = null) {
     }
 }
 
-// Fungsi baru untuk trigger ringkasan dari sisi client
 // GANTI TOTAL FUNGSI INI
 async function triggerAutoSummary(sessionId) {
     if (!sessionId) return;
 
-    console.log("🚀 Diam-diam memeriksa kebutuhan ringkasan...");
-    // HAPUS notifikasi "Memeriksa..." dari sini.
-
     try {
-        const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
-        const selectedModel = apiSettings.model || 'models/gemini-2.5-flash';
+        // --- LANGKAH 1: TANYA DULU ---
+        const checkResponse = await fetch(`/api/sessions/${sessionId}/summary-needed-check`);
+        const checkData = await checkResponse.json();
 
-        const response = await fetch(`/api/sessions/${sessionId}/trigger-summary`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: selectedModel })
-        });
+        // Jika server bilang "Iya, perlu diringkas"
+        if (checkData.needed) {
+            
+            // --- LANGKAH 2: BARU SURUH KERJA ---
+            showToastNotification('Sedang meringkas percakapan...', 'info');
 
-        const result = await response.json();
+            const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
+            const selectedModel = apiSettings.model || 'models/gemini-2.5-flash';
 
-        if (!response.ok) {
-            // Jika server error (500, 503, dll), baru kita kasih tau.
-            throw new Error(result.error || 'Gagal trigger ringkasan.');
+            const execResponse = await fetch(`/api/sessions/${sessionId}/execute-summary`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: selectedModel })
+            });
+            const execResult = await execResponse.json();
+
+            if (!execResponse.ok) {
+                throw new Error(execResult.message || 'Gagal saat eksekusi ringkasan.');
+            }
+
+            // Tampilkan notifikasi hasil akhir (sukses atau gagal dari proses ringkas)
+            // Notif ini akan otomatis menggantikan notif "Sedang meringkas..."
+            if (execResult.status === 'success') {
+                showToastNotification(execResult.message, 'success');
+            } else if (execResult.status === 'error') {
+                showToastNotification(execResult.message, 'error');
+            }
         }
-
-        // --- INI LOGIKA BARUNYA ---
-        // Kita HANYA bereaksi jika statusnya BUKAN 'noop' (no operation).
-        if (result.status === 'success') {
-            // Tampilkan notifikasi HANYA jika berhasil.
-            showToastNotification(result.message, 'success');
-        } else if (result.status === 'error') {
-            // Tampilkan notifikasi HANYA jika gagal.
-            showToastNotification(result.message, 'error');
-        }
-        // Jika statusnya 'noop', kita tidak melakukan apa-apa.
-        // Console log di bawah ini opsional, bagus untuk debugging.
+        // Jika server bilang "Enggak, belum perlu", kita tidak melakukan apa-apa. Selesai.
         else {
-            console.log(`✅ Pengecekan ringkasan selesai: ${result.message}`);
+             console.log("✅ Belum waktunya meringkas. Tidak ada notifikasi ditampilkan.");
         }
 
     } catch (error) {
-        console.error("Gagal total saat trigger ringkasan otomatis:", error);
-        // Tampilkan notifikasi hanya jika ada error koneksi atau sejenisnya.
-        showToastNotification(`Gagal menghubungi server untuk ringkasan: ${error.message}`, 'error');
+        console.error("Gagal total selama proses ringkasan otomatis:", error);
+        showToastNotification(`Error: ${error.message}`, 'error');
     }
 }
 

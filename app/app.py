@@ -111,7 +111,7 @@ def stream_generator(
         history_block = ""
         if summary and len(history) > 10:
             # Kita perpanjang ingatannya dari 8 jadi 20 pesan terakhir! Ini kuncinya.
-            recent_history = history[-20:]
+            recent_history = history[-30:]
             history_text = "\n".join(
                 [format_history_entry(msg) for msg in recent_history]
             )
@@ -131,7 +131,8 @@ def stream_generator(
             f"{npc_block}"
             f"Ikuti instruksi sistem ini, ikuti setiap instruksi dan aturan yang ditulis dan ini bersifat mutlak dan wajib untuk dipatuhi :\n<instruksi_sistem>\n{system_instruction}\n</instruksi_sistem>\n\n"
             f"- Selalu berikan respons yang deskriptif, detail, dan panjang dalam beberapa paragraf. Jangan pernah menjawab dengan satu kalimat singkat selalu gunakan bahasa indonesia yang informal."
-            f"- Jelaskan tindakan atau pikiran yang banyaknya 20%, dan dialog percakapan yang banyaknya 80% untuk karaktermu secara mendalam. mengikuti semua instruksi di atas.\n\n"
+            f"- Jelaskan tindakan atau pikiran yang banyaknya 20%, dan dialog percakapan yang banyaknya 80% untuk karaktermu secara mendalam. mengikuti semua instruksi di atas. untuk aksi atau kegiatan gunakan markdown ini **teks** kalau dialog pakai ini "
+            "\n\n"
             f"Gunakan contoh dialog ini sebagai referensi gaya bicara kamu yang informal.. \n<contoh_dialog>\n{example_dialogs}\n</contoh_dialog>\n\n"
             f"---\n\n"
             f"{history_block}\n\n"
@@ -312,7 +313,19 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
                         for msg in messages_to_summarize
                     ]
                 )
-                summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan ringkas percakapan dengan bahasa indonesia yang gaul tanpa lu/gue gunakan nama karakter dan user. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting, moment penting, janji yang dibuat, waktu, dan tempat. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri buatkan sedetail mungkin.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
+                summarization_prompt = f"""Kamu adalah AI ahli perekam dan penulis kronik cerita roleplay.
+                Tugasmu adalah membaca PENGGALAN PERCAKAPAN di bawah, lalu membuat sebuah ringkasan kronologis yang DETAIL dan KOMPREHENSIF dengan gaya bahasa informal (tanpa gue/lo).
+                Fokus pada poin-poin krusial berikut:
+                - Alur Cerita & Kejadian Utama: Apa saja peristiwa penting yang terjadi secara berurutan?
+                - Dialog & Janji Penting: Apa saja janji yang dibuat atau informasi penting yang diungkapkan dalam obrolan?
+                - Detail Spesifik: Sebutkan lokasi, waktu, atau objek penting yang menjadi fokus.
+                - Momen Penting & Interaksi Karakter: Jelaskan momen emosional, romantis, atau titik balik dalam interaksi.
+                ATURAN PENTING UNTUK KONTEN DEWASA (NSFW): Jika ada adegan atau deskripsi seksual, kamu WAJIB menjelaskannya secara eksplisit dan apa adanya. Jangan gunakan perumpamaan atau bahasa kiasan (contoh: 'gunung kembar'). Gunakan istilah anatomi yang benar dan langsung seperti 'payudara', 'penis', 'vagina', dan jelaskan tindakan yang terjadi tanpa sensor.
+                Tulis ringkasan dalam beberapa paragraf yang mengalir seperti sebuah cerita. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri, tanpa komentar tambahan.
+                --- PENGGALAN PERCAKAPAN ---
+                {history_text}
+                --- SELESAI ---
+                """
 
                 api_key_to_use = os.getenv("GEMINI_API_KEY")
                 client = genai.Client(api_key=api_key_to_use)
@@ -347,7 +360,7 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
                 # INI PERBAIKAN PENTING: Paksa resolve generator jika ada
                 # Dan ambil teksnya dengan aman
 
-                if response and hasattr(response, 'text') and response.text:
+                if response and hasattr(response, "text") and response.text:
                     new_summary_chunk = response.text.strip()
                 else:
                     # Jika respons aneh (kosong, diblokir), sengaja lempar error agar ditangkap.
@@ -862,28 +875,61 @@ def add_new_message():
             conn.close()
 
 
+# Endpoint BARU (Langkah 1: Tanya Dulu)
+@app.route("/api/sessions/<int:session_id>/summary-needed-check", methods=["GET"])
+def summary_needed_check(session_id):
+    conn = None
+    try:
+        SUMMARY_INTERVAL = 11
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT last_summary_message_count FROM public.conversation WHERE id = %s",
+                (session_id,),
+            )
+            last_summary_count = cur.fetchone()[0]
+
+            cur.execute(
+                "SELECT COUNT(*) FROM public.message WHERE conversation_id = %s",
+                (session_id,),
+            )
+            current_message_count = cur.fetchone()[0]
+
+        if current_message_count >= last_summary_count + SUMMARY_INTERVAL:
+            return {"needed": True}
+        else:
+            return {"needed": False}
+
+    except Exception as e:
+        print(f"❌ Error di summary_needed_check: {e}")
+        return {"needed": False}  # Anggap tidak perlu jika ada error
+    finally:
+        if conn:
+            conn.close()
+
+
 # Endpoint BARU untuk menjalankan ringkasan otomatis
-@app.route("/api/sessions/<int:session_id>/trigger-summary", methods=["POST"])
-def trigger_summary_check(session_id):
+@app.route("/api/sessions/<int:session_id>/execute-summary", methods=["POST"])
+def execute_summary(session_id):
     conn = None
     try:
         data = request.json
         selected_model = data.get("model", "models/gemini-2.5-flash")
         conn = get_db_connection()
         if conn is None:
+            # Jika koneksi gagal, kembalikan format error yang konsisten
             return Response(
-                json.dumps({"status": "error", "message": "Koneksi DB gagal"}),
+                json.dumps({"status": "error", "message": "Koneksi DB gagal."}),
                 status=503,
             )
 
-        # Panggil fungsi dan tangkap hasilnya
+        # Langsung panggil fungsi inti. Fungsi ini SUDAH mengembalikan format yang benar.
         summary_result = check_and_summarize_if_needed(session_id, conn, selected_model)
 
-        # KEMBALIKAN HASIL APA ADANYA DARI FUNGSI. INI PENTING.
         return Response(json.dumps(summary_result), status=200)
 
     except Exception as e:
-        print(f"❌ Error di trigger_summary_check: {e}")
+        print(f"❌ Error di execute_summary: {e}")
         return Response(
             json.dumps(
                 {"status": "error", "message": f"Terjadi kesalahan di server: {str(e)}"}
@@ -939,7 +985,19 @@ def summarize_manual_chunk(session_id):
 
             # Panggil Gemini untuk meringkas
             history_text = "\n".join([f"{row[0]}: {row[1]}" for row in rows])
-            summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan dengan bahasa indonesia yang gaul tanpa gue / lo. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting seperti janji, moment penting, waktu, dan tempat saat roleplay. Jawabanmu HANYA BOLEH berisi paragraf ringkasan dari roleplay, buatkan sedetail mungkin dan sepanjang yang diperlukan.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
+            summarization_prompt = f"""Kamu adalah AI ahli perekam dan penulis kronik cerita roleplay.
+            Tugasmu adalah membaca PENGGALAN PERCAKAPAN di bawah, lalu membuat sebuah ringkasan kronologis yang DETAIL dan KOMPREHENSIF dengan gaya bahasa informal (tanpa gue/lo).
+            Fokus pada poin-poin krusial berikut:
+            - Alur Cerita & Kejadian Utama: Apa saja peristiwa penting yang terjadi secara berurutan?
+            - Dialog & Janji Penting: Apa saja janji yang dibuat atau informasi penting yang diungkapkan dalam obrolan?
+            - Detail Spesifik: Sebutkan lokasi, waktu, atau objek penting yang menjadi fokus.
+            - Momen Penting & Interaksi Karakter: Jelaskan momen emosional, romantis, atau titik balik dalam interaksi.
+            ATURAN PENTING UNTUK KONTEN DEWASA (NSFW): Jika ada adegan atau deskripsi seksual, kamu WAJIB menjelaskannya secara eksplisit dan apa adanya. Jangan gunakan perumpamaan atau bahasa kiasan (contoh: 'gunung kembar'). Gunakan istilah anatomi yang benar dan langsung seperti 'payudara', 'penis', 'vagina', dan jelaskan tindakan yang terjadi tanpa sensor.
+            Tulis ringkasan dalam beberapa paragraf yang mengalir seperti sebuah cerita. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri, tanpa komentar tambahan.
+            --- PENGGALAN PERCAKAPAN ---
+            {history_text}
+            --- SELESAI ---
+            """
 
             api_key_to_use = os.getenv("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key_to_use)
