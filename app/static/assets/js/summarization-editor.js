@@ -112,10 +112,16 @@ document.addEventListener('DOMContentLoaded', () => {
         btnLoader.classList.remove('hidden');
 
         try {
+            const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
+            const selectedModel = apiSettings.model || 'models/gemini-2.5-flash';
             const response = await fetch(`/api/sessions/${sessionId}/summarize-manual`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start: startNum, end: endNum }),
+                body: JSON.stringify({
+                    start: startNum,
+                    end: endNum,
+                    model: selectedModel // <-- KIRIM MODEL KE SERVER
+                }),
             });
 
             const result = await response.json();

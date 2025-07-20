@@ -123,20 +123,20 @@ def stream_generator(
                 history_block = f"RIWAYAT CHAT SEBELUMNYA:\n{history_text}"
 
         full_prompt = (
-            f"Kamu adalah sebuah karakter AI dengan peran dan instruksi sebagai berikut\n"
+            f"Kamu adalah sebuah karakter Fiksi dengan peran dan instruksi sebagai berikut\n"
             f"{persona_text_block}"
             f"{user_persona_block}"
             f"{memory_block}"
             f"{world_info_block}"
             f"{npc_block}"
             f"Ikuti instruksi sistem ini, ikuti setiap instruksi dan aturan yang ditulis dan ini bersifat mutlak dan wajib untuk dipatuhi :\n<instruksi_sistem>\n{system_instruction}\n</instruksi_sistem>\n\n"
-            f"- Selalu berikan respons yang deskriptif, detail, dan panjang dalam beberapa paragraf. Jangan pernah menjawab dengan satu kalimat singkat."
+            f"- Selalu berikan respons yang deskriptif, detail, dan panjang dalam beberapa paragraf. Jangan pernah menjawab dengan satu kalimat singkat selalu gunakan bahasa indonesia yang informal."
             f"- Jelaskan tindakan atau pikiran yang banyaknya 20%, dan dialog percakapan yang banyaknya 80% untuk karaktermu secara mendalam. mengikuti semua instruksi di atas.\n\n"
             f"Gunakan contoh dialog ini sebagai referensi gaya bicara kamu yang informal.. \n<contoh_dialog>\n{example_dialogs}\n</contoh_dialog>\n\n"
             f"---\n\n"
             f"{history_block}\n\n"
             f"INGAT: Selalu gunakan gaya bahasa yang santai dan informal sesuai <instruksi_sistem> di atas. "
-            f"Jangan pernah gunakan kata 'akan' atau 'tentu saja'.\n"
+            f"Jangan pernah gunakan kata 'akan' atau 'tentu aja'.\n"
             f"Sekarang giliranmu merespon sebagai {character_info.get('name', 'karakter')}. Ingat, jawab dengan gaya bicaramu yang santai dan informal.\n"
             f"model:"
         )
@@ -149,19 +149,19 @@ def stream_generator(
             safety_settings=[  # <-- Langsung didefinisikan di sini
                 types.SafetySetting(
                     category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    threshold=types.HarmBlockThreshold.HARM_BLOCK_THRESHOLD_UNSPECIFIED,
                 ),
                 types.SafetySetting(
                     category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    threshold=types.HarmBlockThreshold.HARM_BLOCK_THRESHOLD_UNSPECIFIED,
                 ),
                 types.SafetySetting(
                     category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    threshold=types.HarmBlockThreshold.HARM_BLOCK_THRESHOLD_UNSPECIFIED,
                 ),
                 types.SafetySetting(
                     category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    threshold=types.HarmBlockThreshold.HARM_BLOCK_THRESHOLD_UNSPECIFIED,
                 ),
             ],
         )
@@ -243,9 +243,6 @@ def show_page(page_name):
         # Jika file tidak ada di folder templates, kirim 404
         return "Not Found", 404
 
-
-# === ENDPOINT UNTUK SUMMARIZE ===
-# === ENDPOINT UNTUK SUMMARIZE (VERSI BARU DENGAN AKUMULASI) ===
 
 # app.py
 
@@ -633,12 +630,6 @@ def delete_session(session_id):
             conn.close()
 
 
-# Taruh ini di app.py, di bawah fungsi get_all_sessions()
-
-# 4. Endpoint untuk MEMBUAT sesi BARU di Gudang Pusat (PostgreSQL)
-# Di dalam app.py
-
-# 4. Endpoint untuk MEMBUAT sesi BARU di Gudang Pusat (PostgreSQL)
 # Di dalam app.py
 
 
@@ -841,6 +832,7 @@ def summarize_manual_chunk(session_id):
         data = request.json
         start_index = data.get("start")
         end_index = data.get("end")
+        selected_model = data.get("model", "models/gemini-2.5-flash")
 
         # Validasi input
         if (
@@ -876,12 +868,12 @@ def summarize_manual_chunk(session_id):
 
             # Panggil Gemini untuk meringkas
             history_text = "\n".join([f"{row[0]}: {row[1]}" for row in rows])
-            summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
+            summarization_prompt = f"Kamu adalah AI yang bertugas meringkas percakapan dengan bahasa indonesia yang gaul tanpa gue / lo. Baca PENGGALAN PERCAKAPAN di bawah, lalu buat ringkasan singkat dalam bentuk paragraf informal dan santai, fokus pada detail penting seperti janji, moment penting, waktu, dan tempat. Jawabanmu HANYA BOLEH berisi paragraf ringkasan itu sendiri.\n\n--- PENGGALAN PERCAKAPAN ---\n{history_text}\n--- SELESAI ---"
 
             api_key_to_use = os.getenv("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key_to_use)
             response = client.models.generate_content(
-                model="models/gemini-2.5-flash", contents=summarization_prompt
+                model=selected_model, contents=summarization_prompt
             )
 
             new_summary_chunk = (
@@ -1020,10 +1012,6 @@ def get_single_session_info(session_id):
 
 # ===================================================================
 # === API ENDPOINTS BARU UNTUK MANIPULASI PESAN ===
-# ===================================================================
-
-# ===================================================================
-# === API ENDPOINTS FINAL UNTUK MANIPULASI PESAN ===
 # ===================================================================
 
 
