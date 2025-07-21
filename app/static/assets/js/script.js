@@ -92,20 +92,25 @@ async function loadChatHistory() {
                 return;
             }
             const data = await response.json();
-            const messagesFromServer = data.messages;
+            const messagesFromServer = data.messages; // Ini sekarang bisa berisi greeting
 
-            // KUNCI UTAMA ADA DI SINI
+            // Jika server tidak mengirim apa-apa, berhenti di sini
+            if (!messagesFromServer || messagesFromServer.length === 0) {
+                console.log("Server tidak mengembalikan pesan apa pun.");
+                return;
+            }
+
+            // INI ADALAH LOOP YANG BENAR UNTUK MENAMPILKAN SEMUA PESAN
             for (const msg of messagesFromServer) {
-                // Buat bubble dulu
+                // Buat bubble untuk setiap pesan yang diterima
                 const bubble = createMessageBubble(msg.role, msg.content, `msg-${msg.db_id}`, msg.sequence_number);
                 const messageTextContainer = bubble.querySelector('.message-text');
 
-                // CEK APAKAH PESAN INI PUNYA GAMBAR
+                // Cek apakah pesan punya gambar
                 if (msg.imageData) {
                     const imageElement = document.createElement('img');
-                    imageElement.src = msg.imageData; // Langsung pakai data base64 dari DB
+                    imageElement.src = msg.imageData;
                     imageElement.className = 'sent-image';
-                    // Taruh gambar di atas teks
                     messageTextContainer.insertBefore(imageElement, messageTextContainer.firstChild);
                 }
 
@@ -115,27 +120,23 @@ async function loadChatHistory() {
                     if (pElement) pElement.style.display = 'none';
                 }
 
+                // Format markdown dan tambahkan ikon 'thought' jika ada
                 formatMarkdown(messageTextContainer.querySelector('p'));
                 if (msg.role === 'model' && msg.thoughts) {
-                    // Simpan data 'thoughts' ke elemen bubble-nya
                     bubble.dataset.thoughts = msg.thoughts;
-                    // Panggil fungsi untuk nambahin ikon 💡
                     addDropdownIcon(bubble);
                 }
-                // Simpan ke history lokal untuk AI
-                chatHistory.push({
-                    id: `msg-${msg.db_id}`,
-                    role: msg.role,
-                    parts: [msg.content]
-                    // Kita tidak perlu simpan gambar di chatHistory, karena AI dapat dari FormData
-                });
-            }
 
-            if (messagesFromServer.length === 0 && data.greeting) {
-                setTimeout(() => displayGreeting(data.greeting), 100);
+                // PENTING: Jangan push greeting ke chatHistory
+                // Kita bisa bedakan dari db_id nya yang unik
+                if (msg.db_id !== "greeting-01") {
+                    chatHistory.push({
+                        id: `msg-${msg.db_id}`,
+                        role: msg.role,
+                        parts: [msg.content]
+                    });
+                }
             }
-
-            lastSummaryCount = Math.floor(chatHistory.length / SUMMARY_INTERVAL) * SUMMARY_INTERVAL;
 
         } catch (error) {
             console.error("Gagal memuat history dari server:", error);
@@ -213,36 +214,18 @@ async function startNewConversation() {
 }
 
 // GANTI TOTAL FUNGSI INI DI js/script.js
-async function displayGreeting(greetingText) {
-    if (!greetingText || !currentConversationId) return;
+// GANTI DENGAN VERSI BARU YANG JAUH LEBIH SIMPEL INI
 
-    try {
-        // 1. Tampilkan sapaan di layar
-        const greetingBubble = createMessageBubble('model', greetingText, `msg-greeting-${Date.now()}`);
-        formatMarkdown(greetingBubble.querySelector('.message-text p'));
+function displayGreeting(greetingText) {
+    // Fungsi ini sekarang tugasnya HANYA menampilkan sapaan di layar.
+    // Dia tidak lagi menyimpan apa-apa ke database.
+    if (!greetingText) return;
 
-        // 2. Simpan pesan sapaan ini ke Gudang Pusat (PostgreSQL)
-        const response = await fetch('/api/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                conversation_id: currentConversationId,
-                role: 'model',
-                content: greetingText
-            }),
-        });
-        const data = await response.json();
-        const newDbId = data.new_message_id;
-        // if (imageDataForApi) {
-        //     clearPendingImageFromStorage();
-        // }
-        // Update ID bubble dan history array dengan ID dari database
-        greetingBubble.id = `msg-${newDbId}`;
-        chatHistory.push({ id: `msg-${newDbId}`, role: 'model', parts: [greetingText] });
+    const greetingBubble = createMessageBubble('model', greetingText, `msg-greeting-${Date.now()}`);
+    formatMarkdown(greetingBubble.querySelector('.message-text p'));
 
-    } catch (error) {
-        console.error("Gagal menyimpan pesan sapaan ke server:", error);
-    }
+    // Karena ini bukan pesan sungguhan, kita TIDAK push ke chatHistory
+    // agar tidak ikut terkirim ke AI di prompt berikutnya.
 }
 
 // FUNGSI BARU: Untuk memformat markdown
@@ -1098,7 +1081,7 @@ async function triggerAutoSummary(sessionId) {
 
         // Jika server bilang "Iya, perlu diringkas"
         if (checkData.needed) {
-            
+
             // --- LANGKAH 2: BARU SURUH KERJA ---
             showToastNotification('Sedang meringkas percakapan...', 'info');
 
@@ -1126,7 +1109,7 @@ async function triggerAutoSummary(sessionId) {
         }
         // Jika server bilang "Enggak, belum perlu", kita tidak melakukan apa-apa. Selesai.
         else {
-             console.log("✅ Belum waktunya meringkas. Tidak ada notifikasi ditampilkan.");
+            console.log("✅ Belum waktunya meringkas. Tidak ada notifikasi ditampilkan.");
         }
 
     } catch (error) {
@@ -1481,6 +1464,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearPendingImageFromStorage();
     });
 
+
     // Listener untuk menutup semua dropdown jika klik di luar
     window.addEventListener('click', (e) => {
         // Tutup dropdown header
@@ -1492,6 +1476,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.message-dropdown-menu').forEach(menu => {
                 menu.classList.add('hidden');
             });
+        }
+    });
+    window.addEventListener('pageshow', function (event) {
+        // event.persisted bernilai true jika halaman diambil dari cache
+        if (event.persisted) {
+            console.log('🔄 Halaman diambil dari cache. Memuat ulang history chat untuk sinkronisasi...');
+            // Panggil ulang fungsi utama untuk memastikan data selalu fresh!
+            loadChatHistory();
         }
     });
 });
