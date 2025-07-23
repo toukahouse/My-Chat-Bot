@@ -4,7 +4,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const modelSelect = document.getElementById('model-select');
     const updateButton = document.querySelector('.update-button');
     const notificationDiv = document.getElementById('save-notification');
+    const temperatureSlider = document.getElementById('temperature-slider');
+    const temperatureValue = document.getElementById('temperature-value');
+    const topPSlider = document.getElementById('top-p-slider');
+    const topPValue = document.getElementById('top-p-value');
 
+    // seleksi semua dropdown keamanan
+    const safetyHarassmentSelect = document.getElementById('safety-harassment');
+    const safetyHateSelect = document.getElementById('safety-hate');
+    const safetySexuallyExplicitSelect = document.getElementById('safety-sexually-explicit');
+    const safetyDangerousSelect = document.getElementById('safety-dangerous');
     // Kunci baru yang spesifik untuk pengaturan API di localStorage
     const storageKey = 'apiSettings';
 
@@ -12,52 +21,80 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadApiSettings() {
         const savedSettings = localStorage.getItem(storageKey);
 
-        // Data default jika belum ada pengaturan sama sekali
+        // Data default yang lebih lengkap sekarang
         const defaultSettings = {
-            apiKey: '', // Kita tidak akan pernah menampilkan API key yang tersimpan
-            model: 'models/gemini-1.5-flash-latest' // Default ke Flash
+            apiKey: '',
+            model: 'models/gemini-2.5-flash',
+            temperature: 0.9,
+            topP: 0.95,
+            safetySettings: {
+                harassment: 'BLOCK_NONE',
+                hate: 'BLOCK_NONE',
+                sexually_explicit: 'BLOCK_NONE',
+                dangerous: 'BLOCK_NONE'
+            }
         };
 
         const settings = savedSettings ? JSON.parse(savedSettings) : defaultSettings;
 
-        // Atur nilai dropdown sesuai dengan data yang tersimpan
-        modelSelect.value = settings.model;
+        // Pastikan settings.safetySettings ada untuk menghindari error
+        if (!settings.safetySettings) {
+            settings.safetySettings = defaultSettings.safetySettings;
+        }
 
-        // PENTING: Jangan pernah mengisi input API Key dengan nilai yang tersimpan
-        // Biarkan kosong demi keamanan. User hanya mengisinya jika ingin MENGGANTI.
-        apiKeyInput.value = '';
+        // Atur nilai untuk semua elemen form
+        modelSelect.value = settings.model || defaultSettings.model;
+        apiKeyInput.value = ''; // Tetap kosong demi keamanan
+
+        temperatureSlider.value = settings.temperature || defaultSettings.temperature;
+        temperatureValue.textContent = temperatureSlider.value;
+        topPSlider.value = settings.topP || defaultSettings.topP;
+        topPValue.textContent = topPSlider.value;
+
+        safetyHarassmentSelect.value = settings.safetySettings.harassment || defaultSettings.safetySettings.harassment;
+        safetyHateSelect.value = settings.safetySettings.hate || defaultSettings.safetySettings.hate;
+        safetySexuallyExplicitSelect.value = settings.safetySettings.sexually_explicit || defaultSettings.safetySettings.sexually_explicit;
+        safetyDangerousSelect.value = settings.safetySettings.dangerous || defaultSettings.safetySettings.dangerous;
     }
 
     // 3. Fungsi untuk menyimpan pengaturan baru
     function saveApiSettings() {
-        // Ambil nilai API Key yang baru dimasukkan. Jika kosong, kita tidak akan mengubahnya.
         const newApiKey = apiKeyInput.value.trim();
-
-        // Ambil nilai model yang dipilih
-        const selectedModel = modelSelect.value;
-
-        // Ambil pengaturan lama sebagai dasar
         const oldSettings = JSON.parse(localStorage.getItem(storageKey) || '{}');
 
-        // Buat objek data baru
+        // Kumpulkan semua data dari form ke satu objek
         const updatedSettings = {
-            // Jika ada API Key baru, gunakan itu. Jika tidak, pertahankan yang lama (yang mungkin kosong).
             apiKey: newApiKey ? newApiKey : oldSettings.apiKey,
-            model: selectedModel
+            model: modelSelect.value,
+            temperature: parseFloat(temperatureSlider.value),
+            topP: parseFloat(topPSlider.value),
+            safetySettings: {
+                harassment: safetyHarassmentSelect.value,
+                hate: safetyHateSelect.value,
+                sexually_explicit: safetySexuallyExplicitSelect.value,
+                dangerous: safetyDangerousSelect.value
+            }
         };
 
-        // Simpan objek yang sudah diupdate ke localStorage
         localStorage.setItem(storageKey, JSON.stringify(updatedSettings));
 
+        notificationDiv.textContent = 'Pengaturan berhasil disimpan!'; // Pesan sukses
         notificationDiv.classList.add('show');
         setTimeout(() => {
             notificationDiv.classList.remove('show');
-        }, 3000); // 3000 milidetik = 3 detik
-        // Kosongkan kembali input API Key setelah disimpan
+        }, 3000);
+
         apiKeyInput.value = '';
     }
 
-    // 4. Sambungkan fungsi ke tombol
+    // Listener untuk update angka saat slider digeser
+    temperatureSlider.addEventListener('input', () => {
+        temperatureValue.textContent = temperatureSlider.value;
+    });
+
+    topPSlider.addEventListener('input', () => {
+        topPValue.textContent = topPSlider.value;
+    });
     updateButton.addEventListener('click', saveApiSettings);
 
     // 5. Muat pengaturan saat halaman pertama kali dibuka

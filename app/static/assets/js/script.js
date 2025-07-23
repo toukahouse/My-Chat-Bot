@@ -300,6 +300,7 @@ function createMessageBubble(sender, text, messageId = null, sequenceNumber = nu
             `;
         } else { // untuk AI/model
             menuItems = `
+                <button class="edit">✏️ Edit</button>
                 <button class="regenerate">✨ Regenerate</button>
                 <button class="delete">🗑️ Hapus</button>
             `;
@@ -389,15 +390,17 @@ function enterEditMode(messageBubble) {
     });
 
     // --- Logika Tombol Simpan ---
-    editArea.querySelector('.save-button').addEventListener('click', async () => { // <-- Tambah async
+    editArea.querySelector('.save-button').addEventListener('click', async () => {
         const newText = textarea.value;
-        await exitEditMode(messageBubble, newText); // <-- Tambah await
+        // INI KUNCINYA: Cek apakah bubble ini milik user atau AI
+        const isUserMessage = messageBubble.classList.contains('user-message');
+        // Panggil exitEditMode dengan parameter ketiga yang sesuai
+        await exitEditMode(messageBubble, newText, isUserMessage);
     });
 }
 
 
-// GANTI LAGI FUNGSI exitEditMode DENGAN VERSI FINAL INI
-async function exitEditMode(messageBubble, newText) {
+async function exitEditMode(messageBubble, newText, shouldRegenerate = false) { // <-- Tambah parameter
     const editArea = messageBubble.querySelector('.edit-area');
     if (editArea) {
         messageBubble.classList.remove('is-editing');
@@ -412,45 +415,66 @@ async function exitEditMode(messageBubble, newText) {
         return;
     }
 
-    // KUNCI BARU: Cek apakah di bubble ini ada gambar yang sudah ada
-    let imageFileToResend = null;
-    const existingImageElement = messageBubble.querySelector('.sent-image');
-    if (existingImageElement) {
-        console.log("Gambar lama terdeteksi, akan dikirim ulang.");
-        // "Bangun ulang" File object dari data base64 yang ada di src gambar
-        const response = await fetch(existingImageElement.src);
-        const blob = await response.blob();
-        imageFileToResend = new File([blob], "resend_image.png", { type: blob.type });
-    }
+    // Kunci #1: Cuma panggil getAiResponse jika 'shouldRegenerate' adalah true
+    if (shouldRegenerate) {
+        let imageFileToResend = null;
+        const existingImageElement = messageBubble.querySelector('.sent-image');
+        if (existingImageElement) {
+            const response = await fetch(existingImageElement.src);
+            const blob = await response.blob();
+            imageFileToResend = new File([blob], "resend_image.png", { type: blob.type });
+        }
 
-    try {
-        isReplying = true;
-        abortController = new AbortController();
-        sendButton.classList.add('is-stopping');
-        sendButton.title = 'Hentikan';
-        await fetch(`/api/messages/${messageDbId}/update`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: newText })
-        });
+        try {
+            isReplying = true;
+            abortController = new AbortController();
+            updateSendButtonState(); // Panggil manajer tombol
+            await fetch(`/api/messages/${messageDbId}/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: newText })
+            });
 
-        console.log("Update di server berhasil. Memuat ulang history chat untuk sinkronisasi...");
-        await loadChatHistory();
+            await loadChatHistory();
+            await getAiResponse(newText, imageFileToResend);
 
-        // Langkah 3: Minta respons AI baru dengan teks yang sudah diedit DAN gambar yang tadi kita simpan.
-        console.log("History sinkron. Meminta respons AI baru dengan gambar (jika ada)...");
-        await getAiResponse(newText, imageFileToResend);
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error("Gagal total saat proses edit/resend user:", error);
+                alert("Terjadi kesalahan. Silakan coba lagi.");
+                await loadChatHistory(); // Pastikan history tetap sinkron
+            }
+        } finally {
+            isReplying = false;
+            updateSendButtonState(); // Balikin tombol ke normal
+        }
+    } else {
+        // Kunci #2: Jika kita edit pesan AI, prosesnya jauh lebih simpel
+        try {
+            // Cuma perlu update kontennya di database. Titik.
+            const response = await fetch(`/api/messages/${messageDbId}/update-simple`, { // Endpoint BARU!
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: newText })
+            });
 
-    } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error("Gagal total saat proses edit/resend:", error);
-            alert("Terjadi kesalahan. Silakan coba lagi.");
+            if (!response.ok) throw new Error("Gagal menyimpan editan pesan AI.");
+
+            // Setelah berhasil, cukup update tampilan di browser & history lokal
+            currentTextElement.textContent = newText;
+            formatMarkdown(currentTextElement);
+            const msgIndex = chatHistory.findIndex(msg => msg.id === `msg-${messageDbId}`);
+            if (msgIndex > -1) {
+                chatHistory[msgIndex].parts = [newText];
+            }
+            showToastNotification("Pesan AI berhasil diedit!", "success");
+
+        } catch (error) {
+            console.error("Gagal edit pesan AI:", error);
+            alert("Gagal menyimpan perubahan.");
+            // Kembalikan teks ke versi sebelum diedit jika gagal
             await loadChatHistory();
         }
-    } finally {
-        isReplying = false;
-        sendButton.classList.remove('is-stopping');
-        sendButton.title = 'Kirim';
     }
 }
 
@@ -802,9 +826,7 @@ function animateTextFadeIn(textElement) {
         textElement.appendChild(wordSpan);
     });
 }
-// ▲▲▲ SELESAI FUNGSI BARU ▲▲▲
 
-// GANTI TOTAL FUNGSI getAiResponse DENGAN INI
 async function getAiResponse(userMessage, fileToSend = null) {
     const indicatorBubble = createTypingIndicator();
     let replyTextElement;
@@ -820,46 +842,47 @@ async function getAiResponse(userMessage, fileToSend = null) {
         }, 100);
     }
 
-    const apiSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
-    const selectedModel = apiSettings.model || 'models/gemini-2.5-flash';
-    const customApiKey = apiSettings.apiKey || null;
-    const characterData = JSON.parse(localStorage.getItem('characterData') || '{}');
-    const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-
     try {
-        const memoryData = JSON.parse(localStorage.getItem('memoryData') || '[]');
-        const worldData = JSON.parse(localStorage.getItem('worldData') || '[]');
-        const npcData = JSON.parse(localStorage.getItem('npcData') || '[]');
+        // Ambil SEMUA data string dari localStorage sekali jalan
+        const apiSettingsString = localStorage.getItem('apiSettings') || '{}';
+        const characterDataString = localStorage.getItem('characterData') || '{}';
+        const userDataString = localStorage.getItem('userData') || '{}';
+        const memoryDataString = localStorage.getItem('memoryData') || '[]';
+        const worldDataString = localStorage.getItem('worldData') || '[]';
+        const npcDataString = localStorage.getItem('npcData') || '[]';
 
-        // Ambil summary langsung dari server sebelum kirim ke AI
+        // Ambil summary dari server (ini tetap sama)
         let currentSummary = "";
         if (currentConversationId) {
             const response = await fetch(`/api/sessions/${currentConversationId}`);
             const data = await response.json();
             currentSummary = data.summary || "";
         }
-        if (currentSummary) {
-            console.log("%c📚 Mengirim prompt ke AI dengan MENGGUNAKAN SEMUA RINGKASAN yang ada:", "color: #4CAF50; font-weight: bold;", currentSummary);
-        } else {
-            console.log("%c📚 Mengirim prompt ke AI TANPA ringkasan (percakapan masih baru).", "color: #FFA500;");
-        }
 
         const formData = new FormData();
         formData.append('message', userMessage);
         formData.append('history', JSON.stringify(chatHistory));
-        formData.append('character', JSON.stringify(characterData));
-        formData.append('user', JSON.stringify(userData));
-        formData.append('memory', JSON.stringify(memoryData));
-        formData.append('world_info', JSON.stringify(worldData));
-        formData.append('npcs', JSON.stringify(npcData));
+
+        // Langsung kirim data dalam bentuk string, lebih efisien!
+        formData.append('character', characterDataString);
+        formData.append('user', userDataString);
+        formData.append('memory', memoryDataString);
+        formData.append('world_info', worldDataString);
+        formData.append('npcs', npcDataString);
+        formData.append('api_settings', apiSettingsString); // INI YANG UTAMA
+
+        // Bagian ini juga disederhanakan, server sudah punya defaultnya
+        const apiSettingsData = JSON.parse(apiSettingsString);
+        formData.append('model', apiSettingsData.model || 'models/gemini-2.5-flash');
+        if (apiSettingsData.apiKey) {
+            formData.append('api_key', apiSettingsData.apiKey);
+        }
+
         formData.append('summary', currentSummary);
         formData.append('conversation_id', currentConversationId);
-        formData.append('model', selectedModel);
-        if (customApiKey) formData.append('api_key', customApiKey);
-        if (fileToSend) formData.append('image', fileToSend);
-        else if (activeImageInfo) {
-            formData.append('active_image_uri', activeImageInfo.uri);
-            formData.append('active_image_mime', activeImageInfo.mime);
+
+        if (fileToSend) {
+            formData.append('image', fileToSend);
         }
 
         const response = await fetch('/chat', {
@@ -1352,7 +1375,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target.classList.contains('edit')) {
             dropdown.classList.add('hidden');
             messageBubble.classList.add('is-editing');
-            enterEditMode(messageBubble); // Fungsi ini akan menampilkan textarea dan tombol simpan
+            enterEditMode(messageBubble); // Fungsi ini tidak perlu diubah
         }
 
         // GANTI BLOK REGENERATE DENGAN VERSI FINAL INI

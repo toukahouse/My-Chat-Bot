@@ -4,8 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const charBioTextarea = document.getElementById('char-bio');
     const charGreetingTextarea = document.getElementById('char-greeting');
     const charDialogsTextarea = document.getElementById('char-dialogs');
-    const tempSlider = document.getElementById('char-temp');
-    const tempValue = document.getElementById('temp-value');
     const updateButton = document.querySelector('.update-button');
 
     // Elemen untuk Persona (jika masih dipakai, jika tidak bisa dihapus)
@@ -91,18 +89,11 @@ document.addEventListener('DOMContentLoaded', () => {
         charDialogsTextarea.value = characterData.example_dialogs;
         renderPersonaEditor(characterData.persona);
 
-        tempSlider.value = characterData.temperature;
-        tempValue.textContent = characterData.temperature;
-
         // Logika baru untuk avatar
         if (characterData.avatar_url) {
             showPreview(characterData.avatar_url);
         } else {
             showEmpty();
-        }
-
-        tempSlider.oninput = function () {
-            tempValue.textContent = this.value;
         }
     }
 
@@ -115,8 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
             system_instruction: charBioTextarea.value,
             persona: personaText,
             greeting: charGreetingTextarea.value,
-            example_dialogs: charDialogsTextarea.value,
-            temperature: parseFloat(tempSlider.value)
+            example_dialogs: charDialogsTextarea.value
         };
 
         localStorage.setItem('characterData', JSON.stringify(updatedData));

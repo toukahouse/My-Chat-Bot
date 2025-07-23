@@ -42,6 +42,7 @@ def stream_generator(
     summary,
     selected_model,
     custom_api_key,
+    api_settings,  # <-- TAMBAHKAN INI
 ):
     def format_history_entry(msg):
         role = msg.get("role")
@@ -83,7 +84,6 @@ def stream_generator(
         example_dialogs = character_info.get("example_dialogs", "")
         user_persona_text = user_info.get("persona", "Seorang pengguna biasa.")
         user_name = user_info.get("name", "User")
-        temperature_value = float(character_info.get("temperature", 0.9))
 
         persona_text_block = (
             f"<persona_karakter>\n{persona_text}\n</persona_karakter>\n\n"
@@ -139,33 +139,61 @@ def stream_generator(
             f"{history_block}\n\n"
             f"INGAT: Selalu gunakan gaya bahasa yang santai dan informal sesuai <instruksi_sistem> di atas. "
             f"Jangan pernah gunakan kata 'akan' atau 'tentu saja'.\n"
-            f"Sekarang giliranmu merespon sebagai {character_info.get('name', 'karakter')}. Ingat, jawab dengan gaya bicaramu yang santai dan informal.\n"
+            f"Sekarang giliranmu merespon sebagai {character_info.get("name", "karakter")}. Ingat, jawab dengan gaya bicaramu yang santai dan informal.\n"
             f"model:"
             """
         print(f"Mengirim prompt ke Gemini...")
 
         # Gabungkan semua konfigurasi, termasuk safety settings
+        # --- MEMBUAT KONFIGURASI DINAMIS DARI API SETTINGS ---
+
+        # 1. Siapkan Generation Config
+        generation_config_dict = {
+            "temperature": api_settings.get("temperature", 0.9),
+            "top_p": api_settings.get("topP", 0.95),
+            # Di masa depan, kamu bisa tambahin top_k, dll di sini
+        }
+
+        # 2. Siapkan Safety Settings
+        # Mapping dari string di JS ke Enum di Python SDK
+        category_map = {
+            "harassment": types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            "hate": types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            "sexually_explicit": types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            "dangerous": types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        }
+        threshold_map = {
+            "BLOCK_NONE": types.HarmBlockThreshold.BLOCK_NONE,
+            "BLOCK_LOW_AND_ABOVE": types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE,
+            "BLOCK_MEDIUM_AND_ABOVE": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+            "BLOCK_ONLY_HIGH": types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        }
+
+        safety_settings_list = []
+        # Ambil objek safetySettings dari frontend, atau default ke objek kosong
+        frontend_safety_settings = api_settings.get("safetySettings", {})
+        for category_str, threshold_str in frontend_safety_settings.items():
+            # Cek apakah kategori dan threshold-nya valid sebelum ditambahkan
+            if category_str in category_map and threshold_str in threshold_map:
+                safety_settings_list.append(
+                    types.SafetySetting(
+                        category=category_map[category_str],
+                        threshold=threshold_map[threshold_str],
+                    )
+                )
+
+        # 3. Gabungkan semua menjadi satu objek config final
+        # 3. Gabungkan semua menjadi satu objek config final
         config = types.GenerateContentConfig(
-            temperature=temperature_value,
+            temperature=generation_config_dict.get(
+                "temperature"
+            ),  # <-- BONGKAR DI SINI
+            top_p=generation_config_dict.get("top_p"),  # <-- DAN DI SINI
+            safety_settings=safety_settings_list,
             thinking_config=types.ThinkingConfig(include_thoughts=True),
-            safety_settings=[  # <-- Langsung didefinisikan di sini
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                ),
-                types.SafetySetting(
-                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                ),
-            ],
+        )
+        print(
+            f"⚙️ Konfigurasi AI yang digunakan: Temp={generation_config_dict['temperature']}, TopP={generation_config_dict['top_p']}, Safety Bypassed={len(safety_settings_list) > 0}"
         )
         user_turn_parts = []
         if image_part:
@@ -246,7 +274,6 @@ def show_page(page_name):
         return "Not Found", 404
 
 
-
 def sanitize_text_for_summary(text):
     """
     Fungsi "Double Sanitizing" yang lebih agresif.
@@ -255,41 +282,45 @@ def sanitize_text_for_summary(text):
     # Langkah 1: Ganti kata-kata vulgar dengan placeholder umum
     # Kita buat placeholdernya lebih samar untuk menghindari pola
     word_replacements = {
-        'payudara': '[aset atas]',
-        'vagina': '[bagian bawah]',
-        'penis': '[kejantanan]',
-        'sperma': '[cairan cinta]',
-        'rahim': '[inti kewanitaan]',
-        'anus': '[area belakang]',
-        'seks': '[aktivitas intim]',
-        'ngeseks': '[melakukan aktivitas intim]',
-        'bercinta': '[momen spesial]',
-        'masturbasi': '[aktivitas solo]',
-        'oral': '[servis mulut]',
-        'kondom': '[pengaman]',
-        'telanjang': '[tanpa busana]',
+        "payudara": "[aset atas]",
+        "vagina": "[bagian bawah]",
+        "penis": "[kejantanan]",
+        "sperma": "[cairan cinta]",
+        "rahim": "[inti kewanitaan]",
+        "anus": "[area belakang]",
+        "seks": "[aktivitas intim]",
+        "ngeseks": "[melakukan aktivitas intim]",
+        "bercinta": "[momen spesial]",
+        "masturbasi": "[aktivitas solo]",
+        "oral": "[servis mulut]",
+        "kondom": "[pengaman]",
+        "telanjang": "[tanpa busana]",
         # Kamu bisa tambahkan lagi di sini...
     }
     for word, placeholder in word_replacements.items():
-        text = re.sub(r'\b' + re.escape(word) + r'\b', placeholder, text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"\b" + re.escape(word) + r"\b", placeholder, text, flags=re.IGNORECASE
+        )
 
     # Langkah 2 (BARU!): Ganti pola kalimat aksi yang sangat deskriptif
     # Ini adalah kunci untuk mengurangi "skor pelanggaran"
     action_patterns = [
-        r'semprotan ke \d+',  # contoh: "semprotan ke 5"
-        r'keluarin semuanya di dalem',
-        r'penuhin rahim aku',
-        r'ngisi aku sampe',
-        r'penis kamu masuk',
-        r'menjilati',
-        r'meremas',
-        r'menggesekkan',
-        r'menusuk',
+        r"semprotan ke \d+",  # contoh: "semprotan ke 5"
+        r"keluarin semuanya di dalem",
+        r"penuhin rahim aku",
+        r"ngisi aku sampe",
+        r"penis kamu masuk",
+        r"menjilati",
+        r"meremas",
+        r"menggesekkan",
+        r"menusuk",
         # Tambahkan pola kalimat lain yang menurutmu terlalu "panas"
     ]
     for pattern in action_patterns:
         # Kita ganti kalimat aksi yang cocok dengan deskripsi netral
-        text = re.sub(pattern, '[terjadi interaksi fisik yang intens]', text, flags=re.IGNORECASE)
+        text = re.sub(
+            pattern, "[terjadi interaksi fisik yang intens]", text, flags=re.IGNORECASE
+        )
 
     return text
 
@@ -542,6 +573,7 @@ def chat():
         npc_entries = json.loads(request.form.get("npcs", "[]"))
         selected_model = request.form.get("model", "models/gemini-2.5-flash")
         custom_api_key = request.form.get("api_key", None)
+        api_settings = json.loads(request.form.get("api_settings", "{}"))
         image_part = None
         image_uri_to_return = None
         active_image_uri = request.form.get("active_image_uri", None)
@@ -610,7 +642,8 @@ def chat():
                 npc_entries,
                 summary,  # <-- Ini summary yang baru kita ambil
                 selected_model,
-                custom_api_key,  # <-- Argumen ini tadinya kelewat
+                custom_api_key,
+                api_settings,
             ),
             mimetype="text/event-stream",
         )  # <-- PERHATIKAN POSISI KURUNG TUTUP INI
@@ -1385,9 +1418,38 @@ def update_message_unified(message_id):
             conn.close()
 
 
-# 11. Endpoint untuk Regenerate (menghapus pesan AI terakhir)
-#    Kita bisa pake ulang endpoint DELETE, tapi kita butuh cara tau ID pesan AI terakhir.
-#    Untuk sekarang, kita asumsikan frontend akan mengirimkan ID pesan AI yang mau dihapus.
+# TAMBAHKAN ENDPOINT BARU INI
+@app.route("/api/messages/<int:message_id>/update-simple", methods=["POST"])
+def update_message_simple(message_id):
+    conn = None
+    try:
+        data = request.json
+        new_content = data.get("content")
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Langsung UPDATE konten pesan tanpa menghapus apa pun.
+            cur.execute(
+                "UPDATE public.message SET content = %s WHERE id = %s",
+                (new_content, message_id),
+            )
+        conn.commit()
+        return Response(
+            json.dumps({"message": "Pesan berhasil diupdate"}),
+            status=200,
+            mimetype="application/json",
+        )
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di update_message_simple: {e}")
+        return Response(
+            json.dumps({"error": "Gagal update pesan di server"}),
+            status=500,
+            mimetype="application/json",
+        )
+    finally:
+        if conn:
+            conn.close()
 
 
 if __name__ == "__main__":
