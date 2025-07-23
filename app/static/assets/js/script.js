@@ -478,6 +478,57 @@ async function exitEditMode(messageBubble, newText, shouldRegenerate = false) { 
     }
 }
 
+// FUNGSI BARU KHUSUS UNTUK KIRIM ULANG
+async function resendUserMessage(messageBubble) {
+    if (isReplying) return; // Jangan lakukan apa-apa kalo lagi sibuk
+
+    const messageDbId = parseInt(messageBubble.dataset.id);
+    if (isNaN(messageDbId)) {
+        alert("Gagal: ID pesan tidak valid.");
+        return;
+    }
+
+    // Ambil konten dari bubble, baik teks maupun gambar
+    const originalText = convertHtmlToMarkdown(messageBubble.querySelector('.message-text p').innerHTML);
+    let imageFileToResend = null;
+    const existingImageElement = messageBubble.querySelector('.sent-image');
+    if (existingImageElement) {
+        const response = await fetch(existingImageElement.src);
+        const blob = await response.blob();
+        imageFileToResend = new File([blob], "resend_image.png", { type: blob.type });
+    }
+
+    try {
+        isReplying = true;
+        abortController = new AbortController();
+        updateSendButtonState();
+
+        // 1. Hapus SEMUA pesan setelah pesan yang di-"resend"
+        await fetch(`/api/messages/${messageDbId}/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: originalText }) // Kirim konten asli untuk jaga-jaga
+        });
+
+        // 2. Muat ulang history biar bersih dan sinkron
+        await loadChatHistory();
+
+        // 3. Panggil AI untuk respons baru
+        console.log(`Mengirim ulang pesan: "${originalText}"`);
+        await getAiResponse(originalText, imageFileToResend);
+
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error("Gagal saat proses kirim ulang:", error);
+            alert("Terjadi kesalahan saat mengirim ulang pesan.");
+            await loadChatHistory();
+        }
+    } finally {
+        isReplying = false;
+        updateSendButtonState();
+    }
+}
+
 // Fungsi untuk membuat gelembung animasi 'mengetik...'
 function createTypingIndicator() {
     const indicator = createMessageBubble('ai', '');
@@ -1451,11 +1502,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (target.classList.contains('resend')) {
             dropdown.classList.add('hidden');
-            if (isReplying) return;
-
-            // Ambil teks asli dari bubble
-            const originalText = convertHtmlToMarkdown(messageBubble.querySelector('.message-text p').innerHTML);
-            await exitEditMode(messageBubble, originalText);
+            // Langsung panggil fungsi baru yang spesifik
+            await resendUserMessage(messageBubble);
         }
     });
     uploadButton.addEventListener('click', () => {
