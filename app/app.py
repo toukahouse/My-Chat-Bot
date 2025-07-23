@@ -431,25 +431,36 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
                 client = genai.Client(api_key=api_key_to_use)
                 # ... (di dalam check_and_summarize_if_needed)
 
-# Siapkan safety settings
+                # 1. Siapkan safety settings seperti biasa
                 summarization_safety_settings = [
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    ),
+                    types.SafetySetting(
+                        category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                        threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                    ),
                 ]
 
-                # Siapkan generation config
-                summarization_gen_config = types.GenerationConfig(
-                    temperature=1.0,
+                # 2. BUNGKUS SEMUANYA ke dalam satu objek GenerateContentConfig
+                summarization_config_object = types.GenerateContentConfig(
+                    temperature=1.0, safety_settings=summarization_safety_settings
                 )
 
-                # Panggil API dengan argumen yang benar
+                # 3. Panggil API dengan SATU parameter konfigurasi bernama 'config'
                 response = client.models.generate_content(
                     model=selected_model,
                     contents=[summarization_prompt],
-                    generation_config=summarization_gen_config,
-                    safety_settings=summarization_safety_settings
+                    config=summarization_config_object,  # <-- INI KUNCI UTAMANYA
                 )
 
                 # --- BLOK EKSTRAKSI TEKS YANG LEBIH AMAN ---
@@ -1139,26 +1150,37 @@ def summarize_manual_chunk(session_id):
             # 1. Siapkan 'tiket bebas sensor' (safety settings) sebagai list biasa
             # ... (di dalam summarize_manual_chunk)
 
-# Siapkan safety settings
+            # Siapkan safety settings
             # 1. Siapkan safety settings seperti biasa
             summarization_safety_settings = [
-                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
             ]
 
             # 2. BUNGKUS SEMUANYA ke dalam satu objek GenerateContentConfig
             summarization_config_object = types.GenerateContentConfig(
-                temperature=1.0,
-                safety_settings=summarization_safety_settings
+                temperature=1.0, safety_settings=summarization_safety_settings
             )
 
             # 3. Panggil API dengan SATU parameter konfigurasi bernama 'config'
             response = client.models.generate_content(
                 model=selected_model,
                 contents=[summarization_prompt],
-                config=summarization_config_object # <-- INI KUNCI UTAMANYA
+                config=summarization_config_object,  # <-- INI KUNCI UTAMANYA
             )
 
             # --- BLOK EKSTRAKSI TEKS YANG LEBIH AMAN ---
