@@ -76,56 +76,49 @@
             </div>
 
             <!-- === KONTROL KEAMANAN === -->
+            <!-- === KONTROL KEAMANAN MODERN (SLIDER) === -->
             <div class="form-group">
                 <h3 style="margin-bottom: 15px; border-bottom: 1px solid #4f545c; padding-bottom: 10px;">Filter Keamanan
                     Konten</h3>
                 <small style="color: #a3a6aa; margin-bottom: 20px; display: block;">
-                    Atur seberapa ketat AI harus memblokir konten yang berpotensi berbahaya. "Block None" akan
-                    mengizinkan semua jenis respons untuk kebutuhan roleplay. Hati-hati saat menggunakan pengaturan ini.
+                    Atur seberapa ketat AI harus memblokir konten. Geser ke kiri untuk lebih bebas, ke kanan untuk lebih
+                    ketat.
                 </small>
 
-                <div class="safety-setting-item"
-                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <label for="safety-harassment">Pelecehan (Harassment)</label>
-                    <select id="safety-harassment" class="safety-select">
-                        <option value="BLOCK_NONE">Block None (Izinkan Semua)</option>
-                        <option value="BLOCK_LOW_AND_ABOVE">Block Low & Above</option>
-                        <option value="BLOCK_MEDIUM_AND_ABOVE">Block Medium & Above</option>
-                        <option value="BLOCK_ONLY_HIGH">Block Only High</option>
-                    </select>
+                <div class="safety-slider-container">
+                    <label for="safety-harassment-slider">Pelecehan (Harassment)</label>
+                    <div class="slider-wrapper">
+                        <input type="range" id="safety-harassment-slider" class="safety-slider" min="0" max="3"
+                            value="0" step="1">
+                        <output id="safety-harassment-value" class="slider-value">Block None</output>
+                    </div>
                 </div>
 
-                <div class="safety-setting-item"
-                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <label for="safety-hate">Ujaran Kebencian (Hate Speech)</label>
-                    <select id="safety-hate" class="safety-select">
-                        <option value="BLOCK_NONE">Block None (Izinkan Semua)</option>
-                        <option value="BLOCK_LOW_AND_ABOVE">Block Low & Above</option>
-                        <option value="BLOCK_MEDIUM_AND_ABOVE">Block Medium & Above</option>
-                        <option value="BLOCK_ONLY_HIGH">Block Only High</option>
-                    </select>
+                <div class="safety-slider-container">
+                    <label for="safety-hate-slider">Ujaran Kebencian (Hate Speech)</label>
+                    <div class="slider-wrapper">
+                        <input type="range" id="safety-hate-slider" class="safety-slider" min="0" max="3" value="0"
+                            step="1">
+                        <output id="safety-hate-value" class="slider-value">Block None</output>
+                    </div>
                 </div>
 
-                <div class="safety-setting-item"
-                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <label for="safety-sexually-explicit">Seksual Eksplisit</label>
-                    <select id="safety-sexually-explicit" class="safety-select">
-                        <option value="BLOCK_NONE">Block None (Izinkan Semua)</option>
-                        <option value="BLOCK_LOW_AND_ABOVE">Block Low & Above</option>
-                        <option value="BLOCK_MEDIUM_AND_ABOVE">Block Medium & Above</option>
-                        <option value="BLOCK_ONLY_HIGH">Block Only High</option>
-                    </select>
+                <div class="safety-slider-container">
+                    <label for="safety-sexually-explicit-slider">Seksual Eksplisit</label>
+                    <div class="slider-wrapper">
+                        <input type="range" id="safety-sexually-explicit-slider" class="safety-slider" min="0" max="3"
+                            value="0" step="1">
+                        <output id="safety-sexually-explicit-value" class="slider-value">Block None</output>
+                    </div>
                 </div>
 
-                <div class="safety-setting-item"
-                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <label for="safety-dangerous">Konten Berbahaya</label>
-                    <select id="safety-dangerous" class="safety-select">
-                        <option value="BLOCK_NONE">Block None (Izinkan Semua)</option>
-                        <option value="BLOCK_LOW_AND_ABOVE">Block Low & Above</option>
-                        <option value="BLOCK_MEDIUM_AND_ABOVE">Block Medium & Above</option>
-                        <option value="BLOCK_ONLY_HIGH">Block Only High</option>
-                    </select>
+                <div class="safety-slider-container">
+                    <label for="safety-dangerous-slider">Konten Berbahaya</label>
+                    <div class="slider-wrapper">
+                        <input type="range" id="safety-dangerous-slider" class="safety-slider" min="0" max="3" value="0"
+                            step="1">
+                        <output id="safety-dangerous-value" class="slider-value">Block None</output>
+                    </div>
                 </div>
             </div>
             <button class="update-button" style="background-color: #5865f2;">Simpan Pengaturan</button>

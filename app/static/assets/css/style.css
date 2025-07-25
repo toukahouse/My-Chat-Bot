@@ -1610,3 +1610,77 @@ a.card-link-wrapper {
         transform: translate(-50%, -50%) rotate(360deg);
     }
 }
+
+.safety-slider-container {
+    margin-bottom: 25px;
+}
+
+.slider-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-top: 8px;
+}
+
+/* -- SLIDER STYLE BARU YANG LEBIH SIMPEL -- */
+.safety-slider {
+    -webkit-appearance: none;
+    /* Hapus style bawaan chrome */
+    appearance: none;
+    width: 100%;
+    height: 5px;
+    /* Bikin track lebih tipis */
+    background: #4f545c;
+    /* Warna dasar track abu-abu gelap */
+    border-radius: 5px;
+    outline: none;
+    /* Hilangin outline biru pas diklik */
+    padding: 0;
+    margin: 0;
+}
+
+/* Ini bagian 'jempol' slidernya */
+.safety-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    /* Ukuran jempolnya pas */
+    height: 18px;
+    background: #ffffff;
+    /* Warna jempol putih bersih */
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    /* Kasih sedikit bayangan biar 'ngambang' */
+    transition: transform 0.1s ease-in-out;
+}
+
+.safety-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: #ffffff;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Efek hover, jempolnya gedein dikit */
+.safety-slider:hover::-webkit-slider-thumb {
+    transform: scale(1.1);
+}
+
+.slider-value {
+    /* Kita ubah backgroundnya biar lebih 'adem' */
+    background-color: #2f3136;
+}
+
+.slider-value {
+    font-family: monospace;
+    background-color: #202225;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    min-width: 120px;
+    /* Biar lebar teksnya gak loncat-loncat */
+    text-align: center;
+}
