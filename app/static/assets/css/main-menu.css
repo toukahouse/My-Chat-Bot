@@ -1,0 +1,466 @@
+/* static/assets/css/main-menu.css */
+
+:root {
+    --bg-primary: #121212;
+    --bg-secondary: #1E1E1E;
+    --bg-tertiary: #2a2a2a;
+    --text-primary: #E0E0E0;
+    --text-secondary: #B3B3B3;
+    --accent-primary: #BB86FC;
+    --accent-secondary: #03DAC6;
+    --border-color: #333333;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+    display: block;
+    /* Override display flex dari style.css */
+    height: auto;
+    /* Override height 100vh */
+}
+
+.main-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+/* Header */
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+/* Ini kode baru buat Search Bar versi Desktop */
+.search-bar-desktop {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 50px;
+    padding: 0.5rem 1rem;
+    width: 300px;
+    /* Atur lebarnya sesuai selera */
+    transition: all 0.3s ease;
+}
+
+.search-bar-desktop:focus-within {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(187, 134, 252, 0.2);
+}
+
+.search-bar-desktop input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    width: 100%;
+    padding-right: 0.5rem;
+}
+
+.search-bar-desktop .search-icon-desktop {
+    color: var(--text-secondary);
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-secondary);
+    border-radius: 50px;
+    padding: 0.5rem 1rem;
+    width: 400px;
+}
+
+.search-bar svg {
+    color: var(--text-secondary);
+    margin-right: 0.75rem;
+}
+
+.search-bar input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 1rem;
+    width: 100%;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.create-character-btn {
+    background-color: var(--accent-primary);
+    color: #000;
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background-color 0.3s ease;
+}
+
+.create-character-btn:hover {
+    background-color: #a764fa;
+}
+
+.user-profile img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* Main Content */
+.content-area {
+    padding: 2rem 0;
+}
+
+.hero-section {
+    position: relative;
+    width: 100%;
+    padding-top: 35%;
+    /* Kita ubah jadi 35%, lebih pendek */
+    max-height: 400px;
+    /* Kita kasih batas tinggi maksimal */
+    border-radius: 12px;
+    margin-bottom: 3rem;
+    overflow: hidden;
+    background-color: var(--bg-tertiary);
+}
+
+.hero-section img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Paksa gambar mengisi kotak tanpa penyok */
+}
+
+.hero-content h2 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+    font-size: 1.8rem;
+}
+
+.see-all-link {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+/* Character Grid & Card */
+.character-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.5rem;
+}
+
+.character-card {
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.character-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    border-color: var(--accent-primary);
+}
+
+.card-image-container {
+    width: 100%;
+    padding-top: 100%;
+    /* Aspect ratio 1:1 (persegi) */
+    position: relative;
+    background-color: var(--bg-tertiary);
+}
+
+.card-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.card-content {
+    padding: 1rem;
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.5rem;
+}
+
+.card-description {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    /* Hanya tampilkan 2 baris */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    height: 2.6em;
+    /* Kira-kira tinggi 2 baris */
+}
+
+/* Kita sembunyikan tombol dari tampilan utama, karena aksi klik akan ada di seluruh kartu */
+.card-actions {
+    display: none;
+}
+
+/* Placeholder card untuk bagian 'Explore' */
+.character-card.is-placeholder {
+    background-color: var(--bg-tertiary);
+    cursor: default;
+}
+
+.character-card.is-placeholder:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: transparent;
+}
+
+.loading-message {
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    text-align: center;
+    grid-column: 1 / -1;
+    /* Penuhi seluruh grid */
+}
+
+/* ===== GAYA UNTUK DROPDOWN PROFIL ===== */
+.profile-menu {
+    position: relative;
+}
+
+.user-profile {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+.user-profile img {
+    display: block;
+    /* Mencegah space aneh di bawah gambar */
+}
+
+.profile-dropdown {
+    position: absolute;
+    top: 120%;
+    /* Posisi di bawah tombol profil */
+    right: 0;
+    width: 220px;
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.profile-dropdown.hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+}
+
+.profile-dropdown a {
+    color: var(--text-primary);
+    text-decoration: none;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+}
+
+.profile-dropdown a:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.profile-dropdown a.logout {
+    color: #e53935;
+    /* Merah untuk logout */
+}
+
+.dropdown-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 0.5rem 0;
+}
+
+/* ======================================================= */
+/* =====     ATURAN TAMPILAN DESKTOP vs MOBILE     ===== */
+/* ======================================================= */
+#search-toggle-btn,
+.create-character-btn-mobile,
+#expandable-search-bar {
+    /* <-- TAMBAHKAN INI */
+    display: none;
+}
+
+/* ======================================================= */
+/* =====     ATURAN RESPONSIVE (MOBILE VIEW)       ===== */
+/* ======================================================= */
+@media (max-width: 768px) {
+
+    .search-bar-desktop {
+        display: none;
+    }
+
+    .main-container {
+        padding: 0 1rem;
+    }
+
+    /* --- Header --- */
+    .main-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 1rem 0;
+        gap: 1rem;
+    }
+
+    .logo {
+        font-size: 1.3rem;
+    }
+
+    .header-icon-btn {
+        display: inline-flex;
+        background: none;
+        border: none;
+        color: var(--text-primary);
+        /* UBAH DARI text-secondary JADI primary */
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+
+    /* Tambahkan ini di bawah .header-icon-btn */
+    .header-icon-btn svg {
+        stroke: currentColor;
+        /* PAKSA WARNA GARIS IKUT WARNA TEKS */
+    }
+
+    /* Sembunyikan elemen header versi desktop */
+    .header-center,
+    .header-right .create-character-btn {
+        display: none;
+    }
+
+    /* Tampilkan tombol ikon versi mobile */
+    #search-toggle-btn,
+    .create-character-btn-mobile {
+        display: inline-flex;
+    }
+
+    .header-right {
+        gap: 0.5rem;
+        /* Jarak antar ikon */
+    }
+
+    #expandable-search-bar {
+        display: block;
+        /* 1. Paksa elemen ini muncul di layout mobile */
+        width: 100%;
+        max-height: 0;
+        /* 2. Tapi sembunyikan dengan tinggi 0 */
+        overflow: hidden;
+        /* 3. Sembunyikan isinya yg meluap */
+        transition: max-height 0.3s ease-out;
+        /* 4. Siapkan animasi untuk tinggi */
+    }
+
+    /* Aturan saat search bar harus MUNCUL */
+    #expandable-search-bar:not(.hidden) {
+        max-height: 100px;
+        /* 5. Saat kelas .hidden hilang, tingginya jadi 100px */
+    }
+
+    /* Aturan untuk kotak input di dalamnya */
+    #expandable-search-bar input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 1rem;
+    }
+
+    /* --- Konten Halaman --- */
+    .section-header h2 {
+        font-size: 1.2rem;
+    }
+
+    .see-all-link {
+        font-size: 0.8rem;
+    }
+
+    .character-grid {
+        grid-template-columns: 1fr 1fr;
+        /* Selalu 2 kolom */
+        gap: 1rem;
+    }
+
+    /* --- KARTU KARAKTER (FIXED FONT SIZE) --- */
+    .card-content {
+        padding: 0.75rem;
+    }
+
+    .character-grid .character-card .card-title {
+        font-size: 0.9rem !important;
+        /* Kita pakai !important untuk memaksa */
+        margin-bottom: 0.25rem;
+    }
+
+    .character-grid .character-card .card-description {
+        font-size: 0.60rem !important;
+        /* Pakai !important di sini juga */
+        line-height: 1.4;
+        height: auto;
+    }
+}

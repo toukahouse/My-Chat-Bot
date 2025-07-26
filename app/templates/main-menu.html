@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot AI</title>
+    <!-- Ganti dengan font yang lebih modern -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/style.css') }}">
+    <!-- Kita butuh file CSS baru khusus untuk menu utama -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main-menu.css') }}">
+</head>
+
+<body>
+
+    <div class="main-container">
+        <!-- HEADER UTAMA -->
+        <!-- GANTI SELURUH HEADER DENGAN INI -->
+        <header class="main-header">
+            <div class="header-left">
+                <!-- Kita ganti teks jadi link ke home -->
+                <a href="/" class="logo">NovaAI</a>
+            </div>
+
+            <div class="header-right">
+                <!-- Tombol Search (hanya ikon) -->
+                <button id="search-toggle-btn" class="header-icon-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+                <div class="search-bar-desktop">
+                    <input type="text" id="search-input-desktop" placeholder="Cari karakter...">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="search-icon-desktop">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </div>
+                <!-- Tombol Create Character -->
+                <a href="character-editor.html" class="create-character-btn-mobile header-icon-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </a>
+
+                <!-- Menu Profil -->
+                <div class="profile-menu">
+                    <button id="profile-menu-btn" class="user-profile">
+                        <img src="https://www.freeiconspng.com/uploads/am-a-19-year-old-multimedia-artist-student-from-manila--21.png"
+                            alt="User Avatar">
+                    </button>
+                    <div id="profile-dropdown" class="profile-dropdown hidden">
+                        <!-- Isi dropdown tetap sama -->
+                        <a href="#">Profile</a>
+                        <a href="character-editor.html">Create a Character</a>
+                        <a href="/">My Characters</a>
+                        <a href="sessions.html">My Chats</a>
+                        <a href="personas.html">My Personas</a>
+                        <a href="api-settings.html">Settings</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="logout">Log out</a>
+                    </div>
+                </div>
+            </div>
+            <div id="expandable-search-bar" class="search-bar-container hidden">
+                <input type="text" id="search-input" placeholder="Cari karakter...">
+            </div>
+        </header>
+
+        <!-- KONTEN UTAMA -->
+        <main class="content-area">
+            <!-- Banner Section -->
+            <!-- Banner Section -->
+            <section class="hero-section">
+                <!-- Ganti URL ini dengan link gambar favoritmu yang berukuran 16:9 -->
+                <img src="https://images7.alphacoders.com/123/1238268.jpg" alt="Hero Banner">
+            </section>
+
+            <!-- My Characters Section -->
+            <section class="character-section">
+                <div class="section-header">
+                    <h2>Karakter Buatanmu</h2>
+                    <a href="#" class="see-all-link">Lihat Semua</a>
+                </div>
+                <div id="character-grid" class="character-grid">
+                    <!-- Kartu karakter akan dimuat di sini oleh main-menu.js -->
+                    <p class="loading-message">Memuat karakter...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Script JS tetap sama, karena logikanya tidak berubah -->
+    <script src="{{ url_for('static', filename='assets/js/main-menu.js') }}" defer></script>
+</body>
+
+</html>

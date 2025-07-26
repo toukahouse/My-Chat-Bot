@@ -1,0 +1,399 @@
+/* static/assets/css/character-detail.css */
+
+:root {
+    --bg-primary: #121212;
+    --bg-secondary: #1E1E1E;
+    --bg-tertiary: #2a2a2a;
+    --text-primary: #E0E0E0;
+    --text-secondary: #B3B3B3;
+    --accent-primary: #BB86FC;
+    --border-color: #333333;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Poppins', sans-serif;
+    display: block;
+    height: auto;
+}
+
+.full-page-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--bg-primary);
+    z-index: 100;
+}
+
+.spinner {
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-left-color: var(--accent-primary);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.container {
+    display: flex;
+    max-width: 1400px;
+    margin: 2rem auto;
+    gap: 2rem;
+    padding: 0 2rem;
+}
+
+.container.hidden {
+    display: none;
+}
+
+/* Kolom Kiri */
+.left-column {
+    flex: 0 0 35%;
+    /* Lebar kolom kiri 35% */
+    max-width: 450px;
+}
+
+.char-image-wrapper {
+    width: 100%;
+    padding-top: 100%;
+    /* Aspect ratio 1:1 */
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+#char-avatar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#char-name-left {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 0.5rem;
+}
+
+#char-creator-info {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
+
+.char-description {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.action-buttons .chat-btn {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    background-color: var(--accent-primary);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: background-color 0.3s ease;
+}
+
+.action-buttons .chat-btn:hover {
+    background-color: #a764fa;
+}
+
+/* Kolom Kanan */
+.right-column {
+    flex: 1;
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+.right-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.right-header h2 {
+    font-size: 1.5rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.header-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.header-btn.edit:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.header-btn.delete:hover {
+    border-color: #e53935;
+    color: #e53935;
+}
+
+/* Accordion */
+.details-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.accordion-item {
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.accordion-header {
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    padding: 1rem 1.5rem;
+    text-align: left;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.accordion-header .arrow {
+    transition: transform 0.3s ease;
+}
+
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 1.5rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.accordion-content pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: inherit;
+}
+
+.accordion-item.active .accordion-header .arrow {
+    transform: rotate(180deg);
+}
+
+.accordion-item.active .accordion-content {
+    max-height: 500px;
+    /* Atur tinggi maksimal konten */
+    padding: 0 1.5rem 1rem 1.5rem;
+}
+
+/* Tombol Kembali ke Menu */
+.back-to-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+    transition: color 0.2s ease;
+}
+
+.back-to-menu-btn:hover {
+    color: var(--text-primary);
+}
+
+/* Penyesuaian untuk Action Buttons */
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    /* Tombol jadi tumpuk ke bawah */
+    gap: 1rem;
+    /* Jarak antar tombol */
+}
+
+.action-buttons .chat-btn {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.action-buttons .chat-btn.primary {
+    background-color: var(--accent-primary);
+    color: #000;
+}
+
+.action-buttons .chat-btn.primary:hover {
+    background-color: #a764fa;
+}
+
+.action-buttons .chat-btn.secondary {
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.action-buttons .chat-btn.secondary:hover {
+    background-color: var(--bg-tertiary);
+    border-color: var(--text-secondary);
+}
+
+.action-buttons .chat-btn.hidden {
+    display: none;
+}
+
+/* Style untuk item accordion yang berupa link */
+.accordion-item.is-link .accordion-header {
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+
+.accordion-item.is-link:hover .accordion-header {
+    background-color: var(--bg-tertiary);
+}
+
+/* ===== RESPONSIVE DESIGN FOR CHARACTER DETAIL ===== */
+/* GANTI SELURUH ISI BLOK MEDIA QUERY DENGAN INI */
+@media (max-width: 992px) {
+    .container {
+        flex-direction: column;
+        padding: 0;
+        /* Hapus padding agar konten menempel ke tepi */
+        margin: 0;
+        gap: 0;
+        /* Hilangkan gap antar kolom */
+    }
+
+    .left-column {
+        max-width: 100%;
+        text-align: center;
+        padding: 1.5rem;
+        /* Beri padding di dalam kolom */
+    }
+
+    .char-image-wrapper {
+        width: 85%;
+        /* Gambar lebih lebar */
+        max-width: 350px;
+        margin-left: auto;
+        margin-right: auto;
+        margin-bottom: 2rem;
+        /* Jarak lebih besar ke nama */
+    }
+
+    #char-name-left {
+        margin-bottom: 2rem;
+        /* Jarak lebih besar ke tombol */
+    }
+
+    .back-to-menu-btn {
+        position: absolute;
+        top: 2rem;
+        /* GESER SEDIKIT KE BAWAH */
+        left: 3rem;
+        /* GESER SEDIKIT KE KANAN */
+        color: white;
+        background-color: rgba(0, 0, 0, 0.5);
+        /* Sedikit lebih gelap biar kontras */
+        padding: 0.6rem;
+        /* Sedikit lebih besar area kliknya */
+        border-radius: 50%;
+        z-index: 10;
+        display: flex;
+        /* Pastikan ikon di tengah */
+        align-items: center;
+        justify-content: center;
+    }
+
+    .back-to-menu-btn span {
+        display: none;
+        /* Sembunyikan teks "Kembali" */
+    }
+
+    .right-column {
+        padding: 1.5rem;
+        border-radius: 20px 20px 0 0;
+        /* Buat sudut atasnya melengkung */
+        margin-top: -20px;
+        /* Tarik sedikit ke atas agar menumpuk */
+        position: relative;
+        z-index: 5;
+    }
+
+    #char-name-left {
+        font-size: 1.4rem;
+        /* Perkecil dari 2.5rem */
+        margin-bottom: 1.2rem;
+    }
+
+    #char-creator-info {
+        font-size: 0.9rem;
+        /* Perkecil sedikit */
+        margin-bottom: 1.5rem;
+    }
+
+    .action-buttons .chat-btn {
+        font-size: 0.9rem;
+        /* Perkecil dari 1.1rem */
+        padding: 0.8rem;
+    }
+
+    .right-header h2 {
+        font-size: 1rem;
+        /* Perkecil dari 1.5rem */
+    }
+
+    .accordion-header {
+        font-size: 0.9rem;
+        /* Perkecil dari 1rem */
+        padding: 0.8rem 1rem;
+    }
+}

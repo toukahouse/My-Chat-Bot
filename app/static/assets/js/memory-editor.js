@@ -3,78 +3,95 @@ document.addEventListener('DOMContentLoaded', () => {
     const memoryListDiv = document.getElementById('memory-list');
     const addMemoryBtn = document.getElementById('add-memory-btn');
     const updateButton = document.querySelector('.update-button');
-    const storageKey = 'memoryData'; // Kunci baru di localStorage
+    
+    // Ambil ID karakter dari URL, ini KUNCINYA!
+    const urlParams = new URLSearchParams(window.location.search);
+    const characterId = urlParams.get('char_id');
 
-    // 2. Fungsi untuk membuat satu baris entri memori di HTML
+    // Jika tidak ada ID, jangan lakukan apa-apa
+    if (!characterId) {
+        document.body.innerHTML = '<h1>Error: ID Karakter tidak ditemukan. Silakan kembali.</h1>';
+        return;
+    }
+
+    // Fungsi untuk membuat satu baris entri (tidak berubah)
     function createMemoryEntry(text = "") {
         const entryDiv = document.createElement('div');
         entryDiv.className = 'memory-entry';
-
         const textarea = document.createElement('textarea');
         textarea.className = 'memory-text';
-        textarea.rows = 2; // Tinggi awal yang cukup
-        textarea.placeholder = 'Tulis fakta penting di sini... (Contoh: Hana tidak suka nanas)';
+        textarea.rows = 2;
+        textarea.placeholder = 'Tulis fakta penting di sini...';
         textarea.value = text;
-
-        // Fitur auto-resize tinggi textarea
         textarea.addEventListener('input', () => {
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
         });
-
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-memory-btn';
         deleteBtn.textContent = 'X';
-
-        deleteBtn.addEventListener('click', () => {
-            entryDiv.remove(); // Hapus elemen dari tampilan
-        });
-
+        deleteBtn.addEventListener('click', () => entryDiv.remove());
         entryDiv.appendChild(textarea);
         entryDiv.appendChild(deleteBtn);
         memoryListDiv.appendChild(entryDiv);
-
-        // Langsung panggil auto-resize saat pertama kali dibuat
-        textarea.style.height = 'auto';
-        textarea.style.height = (textarea.scrollHeight) + 'px';
+        setTimeout(() => {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        }, 10);
     }
 
-    // 3. Fungsi untuk memuat data dari localStorage saat halaman dibuka
-    function loadMemoryData() {
-        const savedData = localStorage.getItem(storageKey);
-        // Data disimpan sebagai array of strings, contoh: ["fakta 1", "fakta 2"]
-        const memories = savedData ? JSON.parse(savedData) : [];
+    // 2. FUNGSI BARU: Memuat data dari server
+    async function loadMemoryData() {
+        try {
+            const response = await fetch(`/api/characters/${characterId}/memories`);
+            if (!response.ok) throw new Error('Gagal memuat data dari server.');
+            
+            const data = await response.json();
+            const memories = data.memories || [];
 
-        memoryListDiv.innerHTML = ''; // Kosongkan list dulu
+            memoryListDiv.innerHTML = ''; // Kosongkan list dulu
 
-        if (memories.length > 0) {
-            memories.forEach(memText => createMemoryEntry(memText));
-        } else {
-            // Jika kosong, buat satu entri default biar user nggak bingung
-            createMemoryEntry();
+            if (memories.length > 0) {
+                memories.forEach(memText => createMemoryEntry(memText));
+            } else {
+                createMemoryEntry(); // Buat satu entri kosong jika belum ada
+            }
+        } catch (error) {
+            alert(error.message);
+            memoryListDiv.innerHTML = `<p style="color: #f04747;">${error.message}</p>`;
         }
     }
 
-    // 4. Fungsi untuk menyimpan data ke localStorage saat tombol "Update" diklik
-    function saveMemoryData() {
+    // 3. FUNGSI BARU: Menyimpan data ke server
+    async function saveMemoryData() {
         const memoryTextareas = memoryListDiv.querySelectorAll('.memory-text');
         const memoriesToSave = [];
-
         memoryTextareas.forEach(textarea => {
             const text = textarea.value.trim();
-            if (text) { // Hanya simpan yang ada isinya
+            if (text) {
                 memoriesToSave.push(text);
             }
         });
 
-        localStorage.setItem(storageKey, JSON.stringify(memoriesToSave));
-        alert('Memori berhasil di-update!');
+        try {
+            const response = await fetch(`/api/characters/${characterId}/memories`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ memories: memoriesToSave }) // Kirim dalam format { "memories": [...] }
+            });
+
+            if (!response.ok) throw new Error('Gagal menyimpan perubahan ke server.');
+            
+            alert('Memori berhasil di-update!');
+        } catch (error) {
+            alert(error.message);
+        }
     }
 
-    // 5. Sambungkan fungsi ke tombol-tombol
-    addMemoryBtn.addEventListener('click', () => createMemoryEntry()); // Kalau tombol '+' diklik, buat entri baru
-    updateButton.addEventListener('click', saveMemoryData); // Kalau tombol 'Update' diklik, simpan data
+    // Sambungkan fungsi ke tombol
+    addMemoryBtn.addEventListener('click', () => createMemoryEntry());
+    updateButton.addEventListener('click', saveMemoryData);
 
-    // 6. Muat data saat halaman pertama kali dibuka
+    // Muat data saat halaman pertama kali dibuka
     loadMemoryData();
 });

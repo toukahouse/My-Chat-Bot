@@ -1,92 +1,98 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Seleksi semua elemen penting
+    // 1. Seleksi elemen penting
     const npcListDiv = document.getElementById('npc-list');
     const addNpcBtn = document.getElementById('add-npc-btn');
     const updateButton = document.querySelector('.update-button');
-    
-    // Gunakan kunci baru yang spesifik untuk data NPC di localStorage
-    const storageKey = 'npcData'; 
 
-    // 2. Fungsi untuk membuat satu blok entri NPC di HTML
+    // Ambil ID karakter dari URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const characterId = urlParams.get('char_id');
+
+    if (!characterId) {
+        document.body.innerHTML = '<h1>Error: ID Karakter tidak ditemukan. Silakan kembali.</h1>';
+        return;
+    }
+
+    // Fungsi untuk membuat satu blok entri NPC
     function createNpcEntry(text = "") {
         const entryDiv = document.createElement('div');
         entryDiv.className = 'npc-entry';
-
         const textarea = document.createElement('textarea');
         textarea.className = 'npc-text';
-        textarea.rows = 4; // Tinggi awal yang cukup lega
-        textarea.placeholder = 
-`Tulis deskripsi NPC di sini...
-
-Contoh:
-Nama: Kenji Tanaka
-Penampilan: Pria tinggi berambut perak, sering memakai kacamata hitam.
-Sifat: Tenang, observan, dan sangat protektif terhadap Hana.
-Peran: Kakak angkat Hana dan pemilik Kafe Neko.`;
+        textarea.rows = 4;
+        textarea.placeholder = `Tulis deskripsi NPC di sini...\n\nContoh:\nNama: Kenji Tanaka\nPenampilan: Pria tinggi berambut perak.\nPeran: Kakak angkat Hana.`;
         textarea.value = text;
-
-        // Fitur auto-resize tinggi textarea
         textarea.addEventListener('input', () => {
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
         });
-
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-npc-btn';
         deleteBtn.textContent = 'X';
-
-        deleteBtn.addEventListener('click', () => {
-            entryDiv.remove(); // Hapus elemen dari tampilan
-        });
-
+        deleteBtn.addEventListener('click', () => entryDiv.remove());
         entryDiv.appendChild(textarea);
         entryDiv.appendChild(deleteBtn);
         npcListDiv.appendChild(entryDiv);
-
-        // Langsung panggil auto-resize saat pertama kali dibuat
-        // Diberi sedikit delay untuk memastikan elemen sudah dirender sepenuhnya oleh browser
         setTimeout(() => {
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
         }, 10);
     }
 
-    // 3. Fungsi untuk memuat data dari localStorage saat halaman dibuka
-    function loadNpcData() {
-        const savedData = localStorage.getItem(storageKey);
-        // Data disimpan sebagai array of strings, sama seperti memori/world
-        const npcs = savedData ? JSON.parse(savedData) : [];
+    // 2. Memuat data dari server
+    async function loadNpcData() {
+        try {
+            const response = await fetch(`/api/characters/${characterId}/npcs`);
+            if (!response.ok) throw new Error('Gagal memuat data dari server.');
 
-        npcListDiv.innerHTML = ''; // Kosongkan list dulu
+            const data = await response.json();
+            const npcs = data.npcs || [];
 
-        if (npcs.length > 0) {
-            npcs.forEach(npcText => createNpcEntry(npcText));
-        } else {
-            // Jika kosong, buat satu entri contoh biar user nggak bingung
-            createNpcEntry(); 
+            npcListDiv.innerHTML = '';
+
+            if (npcs.length > 0) {
+                // Berbeda dengan yg lain, kita tidak pakai .join() karena pemisahnya '---'
+                // Jadi kita langsung loop array-nya
+                npcs.forEach(npcText => createNpcEntry(npcText));
+            } else {
+                createNpcEntry();
+            }
+        } catch (error) {
+            alert(error.message);
+            npcListDiv.innerHTML = `<p style="color: #f04747;">${error.message}</p>`;
         }
     }
 
-    // 4. Fungsi untuk menyimpan data ke localStorage saat tombol "Update" diklik
-    function saveNpcData() {
+    // 3. Menyimpan data ke server
+    async function saveNpcData() {
         const npcTextareas = npcListDiv.querySelectorAll('.npc-text');
         const npcsToSave = [];
-
         npcTextareas.forEach(textarea => {
             const text = textarea.value.trim();
-            if (text) { // Hanya simpan yang ada isinya
+            if (text) {
                 npcsToSave.push(text);
             }
         });
 
-        localStorage.setItem(storageKey, JSON.stringify(npcsToSave));
-        alert('Info NPC berhasil di-update!');
+        try {
+            const response = await fetch(`/api/characters/${characterId}/npcs`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ npcs: npcsToSave })
+            });
+
+            if (!response.ok) throw new Error('Gagal menyimpan perubahan ke server.');
+
+            alert('Info NPC berhasil di-update!');
+        } catch (error) {
+            alert(error.message);
+        }
     }
 
-    // 5. Sambungkan semua fungsi ke tombol-tombol yang sesuai
+    // Sambungkan fungsi ke tombol
     addNpcBtn.addEventListener('click', () => createNpcEntry());
     updateButton.addEventListener('click', saveNpcData);
 
-    // 6. Muat data saat halaman pertama kali dibuka
+    // Muat data saat halaman dibuka
     loadNpcData();
 });

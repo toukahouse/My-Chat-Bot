@@ -27,7 +27,15 @@ window.onload = () => {
             container.innerHTML = '<p class="loading-message">Lagi ngambil data dari Gudang Pusat...</p>';
 
             // 1. Ambil data dari API backend kita
-            const response = await fetch('/api/sessions'); // Nanya ke Gudang Pusat
+            const urlParams = new URLSearchParams(window.location.search);
+            const charId = urlParams.get('char_id');
+
+            let apiUrl = '/api/sessions';
+            if (charId) {
+                apiUrl += `?char_id=${charId}`; // Tambahkan parameter ke URL API
+            }
+
+            const response = await fetch(apiUrl);
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || `Gagal fetch dari server: ${response.statusText}`);

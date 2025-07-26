@@ -258,20 +258,63 @@ def stream_generator(
 # --- Route untuk Menyajikan Halaman Utama ---
 @app.route("/")
 def index():
+    return render_template("main-menu.html")
+
+
+@app.route("/index.html")
+def chat_page():
+    # Halaman chat utama sekarang punya rute sendiri
     return render_template("index.html")
 
 
-@app.route("/<page_name>")
-def show_page(page_name):
-    # Cek untuk keamanan, pastikan yang diminta adalah file html
-    if not page_name.endswith(".html"):
-        return "Not Found", 404
-    try:
-        # Coba render template dengan nama yang diminta
-        return render_template(page_name)
-    except:
-        # Jika file tidak ada di folder templates, kirim 404
-        return "Not Found", 404
+@app.route("/character-editor.html")
+def character_editor_page():
+    return render_template("character-editor.html")
+
+
+@app.route("/character-detail.html")
+def character_detail_page():
+    return render_template("character-detail.html")
+
+
+@app.route("/main-menu.html")
+def main_menu_page():
+    return render_template("main-menu.html")
+
+
+@app.route("/personas.html")
+def personas_page():
+    return render_template("personas.html")
+
+
+@app.route("/api-settings.html")
+def api_settings_page():
+    return render_template("api-settings.html")
+
+
+@app.route("/memory-editor.html")
+def memory_editor_page():
+    return render_template("memory-editor.html")
+
+
+@app.route("/world-editor.html")
+def world_editor_page():
+    return render_template("world-editor.html")
+
+
+@app.route("/npc-editor.html")
+def npc_editor_page():
+    return render_template("npc-editor.html")
+
+
+@app.route("/sessions.html")
+def sessions_page():
+    return render_template("sessions.html")
+
+
+@app.route("/summarization-editor.html")
+def summarization_editor_page():
+    return render_template("summarization-editor.html")
 
 
 def sanitize_text_for_summary(text):
@@ -574,12 +617,43 @@ def chat():
         history = json.loads(request.form.get("history", "[]"))
         character_info = json.loads(request.form.get("character", "{}"))
         user_info = json.loads(request.form.get("user", "{}"))
-        memory_entries = json.loads(request.form.get("memory", "[]"))
-        world_info_entries = json.loads(request.form.get("world_info", "[]"))
-        npc_entries = json.loads(request.form.get("npcs", "[]"))
         selected_model = request.form.get("model", "models/gemini-2.5-flash")
         custom_api_key = request.form.get("api_key", None)
         api_settings = json.loads(request.form.get("api_settings", "{}"))
+        conversation_id = request.form.get("conversation_id")
+
+        # ▼▼▼ INI BAGIAN BARU & PENTINGNYA ▼▼▼
+        # Ambil ID karakter dari character_info yang dikirim frontend
+        character_id = character_info.get("id")
+        memory_entries = []
+        world_info_entries = []
+        npc_entries = []
+        summary = ""
+
+        with conn.cursor() as cur:
+            # Ambil summary dari sesi chat
+            cur.execute(
+                "SELECT summary FROM public.conversation WHERE id = %s",
+                (int(conversation_id),),
+            )
+            result = cur.fetchone()
+            if result:
+                summary = result[0] or ""
+
+            # Ambil Memory, World Info, dan NPC dari karakter yang sesuai
+            if character_id:
+                cur.execute(
+                    "SELECT memories, world_info, npcs FROM public.characters WHERE id = %s",
+                    (character_id,),
+                )
+                char_extra_data = cur.fetchone()
+                if char_extra_data:
+                    memory_entries = char_extra_data[0] or []
+                    world_info_entries = char_extra_data[1] or []
+                    npc_entries = char_extra_data[2] or []
+                    print(
+                        f"✅ Berhasil memuat data spesifik untuk Karakter ID: {character_id}"
+                    )
         image_part = None
         image_uri_to_return = None
         active_image_uri = request.form.get("active_image_uri", None)
@@ -623,17 +697,6 @@ def chat():
                 print(f"❌ Gagal membuat Part dari URI: {e}")
                 image_part = None
 
-        summary = ""
-        # Kita sudah pastikan 'conn' tidak None di atas, jadi aman untuk langsung pakai.
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT summary FROM public.conversation WHERE id = %s",
-                (int(conversation_id),),
-            )
-            result = cur.fetchone()
-            if result:
-                summary = result[0] or ""
-
         # Panggil stream_generator dengan SEMUA argumen yang benar
         return Response(
             stream_generator(
@@ -643,17 +706,16 @@ def chat():
                 user_message,
                 character_info,
                 user_info,
-                memory_entries,
-                world_info_entries,
-                npc_entries,
-                summary,  # <-- Ini summary yang baru kita ambil
+                memory_entries,  # <-- Ini dari DB
+                world_info_entries,  # <-- Ini dari DB
+                npc_entries,  # <-- Ini dari DB
+                summary,
                 selected_model,
                 custom_api_key,
                 api_settings,
             ),
             mimetype="text/event-stream",
-        )  # <-- PERHATIKAN POSISI KURUNG TUTUP INI
-
+        )
     except json.JSONDecodeError:
         return Response(
             json.dumps({"error": "Format JSON pada salah satu data form tidak valid"}),
@@ -700,48 +762,58 @@ def get_db_connection():
         return None
 
 
-# 2. Endpoint untuk MENGAMBIL semua sesi dari Gudang Pusat (PostgreSQL)
+# GANTI TOTAL FUNGSI INI
 @app.route("/api/sessions", methods=["GET"])
 def get_all_sessions():
     conn = None
+    # Ambil char_id dari parameter URL (contoh: /api/sessions?char_id=5)
+    char_id = request.args.get("char_id", None)
+
     try:
         conn = get_db_connection()
         if conn is None:
-            # Jika koneksi gagal, kirim error 503 Service Unavailable
-            return Response(
-                json.dumps({"error": "Server tidak bisa terhubung ke database."}),
-                status=503,
-                mimetype="application/json",
-            )
+            return {"error": "Server tidak bisa terhubung ke database."}, 503
 
-        # Pakai 'with' biar cursor otomatis ditutup
         with conn.cursor() as cur:
-            # Query ini aku udah sesuaikan 100% sama struktur tabel kamu
-            cur.execute("""
-                SELECT
-                    c.id,
-                    c.timestamp,
-                    c.summary,
-                    c.character_name,
-                    c.character_avatar,
-                    (SELECT COUNT(*) FROM public.message m WHERE m.conversation_id = c.id) as message_count
-                FROM
-                    public.conversation c
-                ORDER BY
-                    c.timestamp DESC;
-            """)
-            # Ambil semua baris hasil query
+            # Jika ada char_id, filter berdasarkan itu. Jika tidak, ambil semua.
+            if char_id:
+                # Ambil nama karakter dulu untuk filtering
+                cur.execute(
+                    "SELECT name FROM public.characters WHERE id = %s", (char_id,)
+                )
+                char_name_result = cur.fetchone()
+                if not char_name_result:
+                    return [], 200  # Kembalikan list kosong jika karakter tidak ada
+
+                char_name = char_name_result[0]
+
+                # Query yang sudah difilter
+                sql_query = """
+                    SELECT c.id, c.timestamp, c.summary, c.character_name, c.character_avatar,
+                           (SELECT COUNT(*) FROM public.message m WHERE m.conversation_id = c.id) as message_count
+                    FROM public.conversation c
+                    WHERE c.character_name = %s
+                    ORDER BY c.timestamp DESC;
+                """
+                cur.execute(sql_query, (char_name,))
+            else:
+                # Query lama untuk mengambil semua sesi (sebagai fallback)
+                sql_query = """
+                    SELECT c.id, c.timestamp, c.summary, c.character_name, c.character_avatar,
+                           (SELECT COUNT(*) FROM public.message m WHERE m.conversation_id = c.id) as message_count
+                    FROM public.conversation c
+                    ORDER BY c.timestamp DESC;
+                """
+                cur.execute(sql_query)
+
             sessions_from_db = cur.fetchall()
 
-        # Ubah data dari format database (tuple) jadi format yang bisa dibaca JS (list of dict)
         sessions_list = []
         for row in sessions_from_db:
             sessions_list.append(
                 {
                     "id": row[0],
-                    "timestamp": row[1].isoformat()
-                    if row[1]
-                    else None,  # isoformat() itu standar universal buat tanggal
+                    "timestamp": row[1].isoformat() if row[1] else None,
                     "summary": row[2],
                     "character_name": row[3],
                     "character_avatar": row[4],
@@ -749,23 +821,39 @@ def get_all_sessions():
                 }
             )
 
-        # Kirim datanya sebagai JSON
-        return Response(
-            json.dumps(sessions_list), status=200, mimetype="application/json"
-        )
+        return sessions_list, 200
 
     except Exception as e:
         print(f"❌ Terjadi kesalahan di endpoint /api/sessions: {e}")
-        return Response(
-            json.dumps(
-                {"error": "Terjadi kesalahan di server saat mengambil data sesi."}
-            ),
-            status=500,
-            mimetype="application/json",
-        )
+        return {"error": "Terjadi kesalahan di server saat mengambil data sesi."}, 500
     finally:
-        # Apapun yang terjadi, pastikan koneksi ke database ditutup
         if conn is not None:
+            conn.close()
+
+
+# Taruh di dalam grup API Persona
+@app.route("/api/personas/<int:persona_id>/set-default", methods=["POST"])
+def set_default_persona(persona_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Langkah 1: Set semua persona jadi TIDAK default
+            cur.execute("UPDATE public.personas SET is_default = FALSE")
+            # Langkah 2: Set HANYA persona yang dipilih yang jadi default
+            cur.execute(
+                "UPDATE public.personas SET is_default = TRUE WHERE id = %s",
+                (persona_id,),
+            )
+        conn.commit()
+        return {"message": "Persona default berhasil diatur!"}, 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di set_default_persona: {e}")
+        return {"error": "Gagal mengatur persona default."}, 500
+    finally:
+        if conn:
             conn.close()
 
 
@@ -875,6 +963,688 @@ def create_new_session():
         )
     finally:
         if conn is not None:
+            conn.close()
+
+
+# --- API UNTUK WORLD INFO ---
+@app.route("/api/characters/<int:char_id>/world_info", methods=["GET"])
+def get_character_world_info(char_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT world_info FROM public.characters WHERE id = %s", (char_id,)
+            )
+            result = cur.fetchone()
+            if not result:
+                return {"error": "Karakter tidak ditemukan"}, 404
+            # Kembalikan list info dunia, atau list kosong jika null
+            return {"world_info": result[0] or []}, 200
+    except Exception as e:
+        print(f"❌ Error di get_character_world_info: {e}")
+        return {"error": "Gagal mengambil data info dunia"}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route("/api/characters/<int:char_id>/world_info", methods=["PUT"])
+def update_character_world_info(char_id):
+    conn = None
+    try:
+        data = request.json
+        world_info_list = data.get("world_info", [])
+        world_info_json = json.dumps(world_info_list)
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE public.characters SET world_info = %s, updated_at = NOW() WHERE id = %s",
+                (world_info_json, char_id),
+            )
+        conn.commit()
+        return {"message": "Info dunia karakter berhasil diupdate!"}, 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di update_character_world_info: {e}")
+        return {"error": "Gagal mengupdate info dunia"}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# --- API UNTUK NPCS ---
+@app.route("/api/characters/<int:char_id>/npcs", methods=["GET"])
+def get_character_npcs(char_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT npcs FROM public.characters WHERE id = %s", (char_id,))
+            result = cur.fetchone()
+            if not result:
+                return {"error": "Karakter tidak ditemukan"}, 404
+            # Kembalikan list npcs, atau list kosong jika null
+            return {"npcs": result[0] or []}, 200
+    except Exception as e:
+        print(f"❌ Error di get_character_npcs: {e}")
+        return {"error": "Gagal mengambil data NPC"}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route("/api/characters/<int:char_id>/npcs", methods=["PUT"])
+def update_character_npcs(char_id):
+    conn = None
+    try:
+        data = request.json
+        npcs_list = data.get("npcs", [])
+        npcs_json = json.dumps(npcs_list)
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE public.characters SET npcs = %s, updated_at = NOW() WHERE id = %s",
+                (npcs_json, char_id),
+            )
+        conn.commit()
+        return {"message": "NPC karakter berhasil diupdate!"}, 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di update_character_npcs: {e}")
+        return {"error": "Gagal mengupdate NPC"}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# ===================================================================
+# === API ENDPOINTS BARU UNTUK MANAJEMEN KARAKTER (CRUD) ===
+# ===================================================================
+
+
+# Endpoint untuk MENGAMBIL SEMUA karakter (Buat Halaman Utama Nanti)
+@app.route("/api/characters", methods=["GET"])
+def get_all_characters():
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return {"error": "Koneksi database gagal"}, 503
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name, avatar_url, persona, updated_at FROM public.characters ORDER BY updated_at DESC"
+            )
+            characters_from_db = cur.fetchall()
+
+        characters_list = []
+        for row in characters_from_db:
+            characters_list.append(
+                {
+                    "id": row[0],
+                    "name": row[1],
+                    "avatar_url": row[2],
+                    "description": row[
+                        3
+                    ],  # Kita pakai 'persona' sebagai deskripsi singkat
+                    "updated_at": row[4].isoformat() if row[4] else None,
+                }
+            )
+
+        return characters_list, 200
+
+    except Exception as e:
+        print(f"❌ Error di get_all_characters: {e}")
+        return {"error": "Gagal mengambil data karakter dari server."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# ===================================================================
+# === API ENDPOINTS BARU UNTUK USER PROFILE ===
+# ===================================================================
+
+
+@app.route("/api/user-profile", methods=["GET"])
+def get_user_profile():
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT name, avatar_url, persona FROM public.user_profiles WHERE id = 1"
+            )
+            profile_data = cur.fetchone()
+            if not profile_data:
+                return {"error": "User profile tidak ditemukan."}, 404
+            profile = {
+                "name": profile_data[0],
+                "avatar_url": profile_data[1],
+                "persona": profile_data[2],
+            }
+        return profile, 200
+    except Exception as e:
+        print(f"❌ Error di get_user_profile: {e}")
+        return {"error": "Gagal mengambil data user profile."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route("/api/user-profile", methods=["PUT"])
+def update_user_profile():
+    conn = None
+    try:
+        data = request.json
+        name = data.get("name")
+        avatar_url = data.get("avatar_url")
+        persona = data.get("persona")
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE public.user_profiles
+                SET name = %s, avatar_url = %s, persona = %s, updated_at = NOW()
+                WHERE id = 1;
+                """,
+                (name, avatar_url, persona),
+            )
+        conn.commit()
+        return {"message": "User profile berhasil diupdate!"}, 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di update_user_profile: {e}")
+        return {"error": "Gagal mengupdate user profile."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# Endpoint untuk MENGAMBIL pengaturan API (TANPA API Key)
+@app.route("/api/api-settings", methods=["GET"])
+def get_api_settings():
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT model, temperature, top_p, safety_settings FROM public.api_settings WHERE id = 1"
+            )
+            settings_data = cur.fetchone()
+
+            if not settings_data:
+                return {"error": "Pengaturan API tidak ditemukan."}, 404
+
+            # safety_settings dari DB itu formatnya dict/json, langsung bisa kita pake
+            settings = {
+                "model": settings_data[0],
+                "temperature": settings_data[1],
+                "topP": settings_data[
+                    2
+                ],  # Perhatikan, frontend pakai 'topP' (camelCase)
+                "safetySettings": settings_data[3],
+            }
+        return settings, 200
+    except Exception as e:
+        print(f"❌ Error di get_api_settings: {e}")
+        return {"error": "Gagal mengambil pengaturan API."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# Endpoint untuk MENGUPDATE pengaturan API
+@app.route("/api/api-settings", methods=["PUT"])
+def update_api_settings():
+    conn = None
+    try:
+        data = request.json
+        # Ambil data dari frontend
+        model = data.get("model")
+        temperature = data.get("temperature")
+        top_p = data.get("topP")
+        safety_settings = data.get("safetySettings")
+        # Ambil juga api_key jika user memasukkannya
+        new_api_key = data.get("apiKey")
+
+        # Konversi safety_settings jadi string JSON untuk disimpan di DB
+        safety_settings_json = json.dumps(safety_settings)
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Jika user memasukkan API key baru, update juga kolom api_key
+            if new_api_key:
+                cur.execute(
+                    """
+                    UPDATE public.api_settings
+                    SET model = %s, temperature = %s, top_p = %s, safety_settings = %s, api_key = %s, updated_at = NOW()
+                    WHERE id = 1;
+                    """,
+                    (model, temperature, top_p, safety_settings_json, new_api_key),
+                )
+                print("✅ Pengaturan API dan API Key baru telah diupdate.")
+            else:
+                # Jika tidak, update sisanya saja
+                cur.execute(
+                    """
+                    UPDATE public.api_settings
+                    SET model = %s, temperature = %s, top_p = %s, safety_settings = %s, updated_at = NOW()
+                    WHERE id = 1;
+                    """,
+                    (model, temperature, top_p, safety_settings_json),
+                )
+                print("✅ Pengaturan API (tanpa API Key) telah diupdate.")
+
+        conn.commit()
+        return {"message": "Pengaturan API berhasil diupdate!"}, 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di update_api_settings: {e}")
+        return {"error": "Gagal mengupdate pengaturan API."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# ===================================================================
+# === API ENDPOINTS BARU UNTUK PERSONA (CRUD LENGKAP) ===
+# ===================================================================
+
+
+# Endpoint untuk MENGAMBIL SEMUA persona
+@app.route("/api/personas", methods=["GET"])
+def get_all_personas():
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name, avatar_url, persona, is_default, updated_at FROM public.personas ORDER BY updated_at DESC"
+            )
+            personas_from_db = cur.fetchall()
+        personas_list = []
+        for row in personas_from_db:
+            personas_list.append(
+                {
+                    "id": row[0],
+                    "name": row[1],
+                    "avatar_url": row[2],
+                    "persona": row[3],
+                    "is_default": row[4],
+                    "updated_at": row[5].isoformat() if row[5] else None,
+                }
+            )
+        return personas_list, 200
+    except Exception as e:
+        print(f"❌ Error di get_all_personas: {e}")
+        return {"error": "Gagal mengambil data persona."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# Endpoint untuk MEMBUAT persona BARU
+@app.route("/api/personas", methods=["POST"])
+def create_persona():
+    conn = None
+    try:
+        data = request.json
+        name = data.get("name")
+        if not name:
+            return {"error": "Nama persona wajib diisi."}, 400
+
+        avatar_url = data.get("avatar_url")
+        persona_text = data.get("persona")
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO public.personas (name, avatar_url, persona) VALUES (%s, %s, %s) RETURNING id;",
+                (name, avatar_url, persona_text),
+            )
+            new_id = cur.fetchone()[0]
+        conn.commit()
+        return {"message": "Persona berhasil dibuat!", "id": new_id}, 201
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di create_persona: {e}")
+        return {"error": "Gagal membuat persona."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# Endpoint untuk MENGAMBIL SATU persona SPESIFIK
+@app.route("/api/personas/<int:persona_id>", methods=["GET"])
+def get_single_persona(persona_id):
+    # (Kita bisa buat ini nanti jika diperlukan untuk halaman edit)
+    pass  # Untuk sementara kita kosongkan
+
+
+@app.route("/api/personas/<int:persona_id>", methods=["PUT"])
+def update_persona(persona_id):
+    conn = None
+    try:
+        data = request.json
+        name = data.get("name")
+        if not name:
+            return {"error": "Nama persona tidak boleh kosong."}, 400
+
+        avatar_url = data.get("avatar_url")
+        persona_text = data.get("persona")
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE public.personas
+                SET name = %s, avatar_url = %s, persona = %s, updated_at = NOW()
+                WHERE id = %s;
+                """,
+                (name, avatar_url, persona_text, persona_id),
+            )
+        conn.commit()
+        return {"message": f"Persona ID {persona_id} berhasil diupdate!"}, 200
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di update_persona: {e}")
+        return {"error": "Gagal mengupdate persona."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# Endpoint untuk MENGHAPUS persona
+@app.route("/api/personas/<int:persona_id>", methods=["DELETE"])
+def delete_persona(persona_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM public.personas WHERE id = %s", (persona_id,))
+        conn.commit()
+        return {"message": "Persona berhasil dihapus."}, 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di delete_persona: {e}")
+        return {"error": "Gagal menghapus persona."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# GANTI TOTAL FUNGSI create_character
+@app.route("/api/characters", methods=["POST"])
+def create_character():
+    conn = None
+    try:
+        data = request.json
+        name = data.get("name")
+        avatar_url = data.get("avatar_url")
+        greeting = data.get("greeting")
+        persona = data.get("persona")
+        example_dialogs = data.get("example_dialogs")
+        system_instruction = data.get("system_instruction")
+
+        if not name:
+            return {"error": "Nama karakter wajib diisi."}, 400
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Perintah INSERT kembali simpel
+            cur.execute(
+                """
+                INSERT INTO public.characters (name, avatar_url, greeting, persona, example_dialogs, system_instruction, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                RETURNING id;
+                """,
+                (
+                    name,
+                    avatar_url,
+                    greeting,
+                    persona,
+                    example_dialogs,
+                    system_instruction,
+                ),
+            )
+            new_char_id = cur.fetchone()[0]
+        conn.commit()
+
+        return {"message": "Karakter berhasil dibuat!", "id": new_char_id}, 201
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di create_character: {e}")
+        return {"error": "Gagal membuat karakter di server."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# Endpoint untuk MENGAMBIL SATU karakter SPESIFIK (buat halaman edit)
+# GANTI TOTAL FUNGSI get_single_character
+@app.route("/api/characters/<int:char_id>", methods=["GET"])
+def get_single_character(char_id):
+    conn = None
+    # GANTI TOTAL BLOK try...except DI FUNGSI get_single_character
+
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Ambil semua data karakter seperti biasa
+            cur.execute("SELECT * FROM public.characters WHERE id = %s", (char_id,))
+            char_data_tuple = cur.fetchone()
+
+            if not char_data_tuple:
+                return {"error": "Karakter tidak ditemukan."}, 404
+
+            # Ambil nama kolom untuk membuat dictionary yang dinamis
+            colnames = [desc[0] for desc in cur.description]
+            char_data = dict(zip(colnames, char_data_tuple))
+
+            # --- INI BAGIAN BARUNYA ---
+            # Cari ID sesi terakhir untuk karakter ini
+            cur.execute(
+                "SELECT id FROM public.conversation WHERE character_name = %s ORDER BY timestamp DESC LIMIT 1",
+                (char_data["name"],),
+            )
+            last_session = cur.fetchone()
+            last_session_id = last_session[0] if last_session else None
+            # --- SELESAI BAGIAN BARU ---
+
+            # Gabungkan semua data menjadi satu
+            character_response = {
+                "id": char_data.get("id"),
+                "name": char_data.get("name"),
+                "avatar_url": char_data.get("avatar_url"),
+                "greeting": char_data.get("greeting"),
+                "persona": char_data.get("persona"),
+                "example_dialogs": char_data.get("example_dialogs"),
+                "system_instruction": char_data.get("system_instruction"),
+                "visibility": char_data.get("visibility"),
+                "created_at": char_data.get("created_at").isoformat()
+                if char_data.get("created_at")
+                else None,
+                "updated_at": char_data.get("updated_at").isoformat()
+                if char_data.get("updated_at")
+                else None,
+                "memories": char_data.get("memories") or [],
+                "world_info": char_data.get("world_info") or [],
+                "npcs": char_data.get("npcs") or [],
+                # Kirim ID sesi terakhir ke frontend
+                "last_session_id": last_session_id,
+            }
+        return character_response, 200
+
+    except Exception as e:
+        print(f"❌ Error di get_single_character: {e}")
+        return {"error": "Gagal mengambil detail karakter."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# GANTI TOTAL FUNGSI update_character
+@app.route("/api/characters/<int:char_id>", methods=["PUT"])
+def update_character(char_id):
+    conn = None
+    try:
+        data = request.json
+        name = data.get("name")
+        avatar_url = data.get("avatar_url")
+        greeting = data.get("greeting")
+        persona = data.get("persona")
+        example_dialogs = data.get("example_dialogs")
+        system_instruction = data.get("system_instruction")
+
+        if not name:
+            return {"error": "Nama karakter tidak boleh kosong."}, 400
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Perintah UPDATE kembali simpel
+            cur.execute(
+                """
+                UPDATE public.characters
+                SET name = %s, avatar_url = %s, greeting = %s, persona = %s,
+                    example_dialogs = %s, system_instruction = %s, updated_at = NOW()
+                WHERE id = %s;
+                """,
+                (
+                    name,
+                    avatar_url,
+                    greeting,
+                    persona,
+                    example_dialogs,
+                    system_instruction,
+                    char_id,
+                ),
+            )
+        conn.commit()
+
+        return {"message": f"Karakter ID {char_id} berhasil diupdate!"}, 200
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di update_character: {e}")
+        return {"error": "Gagal mengupdate karakter di server."}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route("/api/characters/<int:char_id>/memories", methods=["GET"])
+def get_character_memories(char_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT memories FROM public.characters WHERE id = %s", (char_id,)
+            )
+            result = cur.fetchone()
+            if not result:
+                return {"error": "Karakter tidak ditemukan"}, 404
+            # Kembalikan list memori, atau list kosong jika null
+            return {"memories": result[0] or []}, 200
+    except Exception as e:
+        print(f"❌ Error di get_character_memories: {e}")
+        return {"error": "Gagal mengambil data memori"}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route("/api/characters/<int:char_id>/memories", methods=["PUT"])
+def update_character_memories(char_id):
+    conn = None
+    try:
+        # Data yang dikirim dari JS adalah sebuah object dengan key 'memories'
+        # yang isinya adalah array of strings.
+        data = request.json
+        memories_list = data.get("memories", [])
+
+        # Ubah list python jadi string format JSON untuk disimpan di DB
+        memories_json = json.dumps(memories_list)
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE public.characters SET memories = %s, updated_at = NOW() WHERE id = %s",
+                (memories_json, char_id),
+            )
+        conn.commit()
+        return {"message": "Memori karakter berhasil diupdate!"}, 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"❌ Error di update_character_memories: {e}")
+        return {"error": "Gagal mengupdate memori"}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# Endpoint untuk MENGHAPUS karakter
+@app.route("/api/characters/<int:char_id>", methods=["DELETE"])
+def delete_character(char_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Langkah 0: Dapatkan nama karakter yang akan dihapus
+            cur.execute("SELECT name FROM public.characters WHERE id = %s", (char_id,))
+            char_name_result = cur.fetchone()
+            if not char_name_result:
+                return {
+                    "message": "Karakter sudah tidak ada."
+                }, 200  # Anggap sudah terhapus
+
+            char_name = char_name_result[0]
+
+            # Langkah 1: Hapus semua 'cucu' (pesan) yang terkait dengan sesi karakter ini.
+            # Kita menggunakan subquery untuk menemukan ID conversation yang benar.
+            cur.execute(
+                "DELETE FROM public.message WHERE conversation_id IN (SELECT id FROM public.conversation WHERE character_name = %s)",
+                (char_name,),
+            )
+            print(f"✅ Pesan-pesan untuk karakter '{char_name}' telah dihapus.")
+
+            # Langkah 2: Hapus semua 'anak' (sesi) yang terkait dengan karakter ini.
+            cur.execute(
+                "DELETE FROM public.conversation WHERE character_name = %s",
+                (char_name,),
+            )
+            print(f"✅ Sesi untuk karakter '{char_name}' telah dihapus.")
+
+            # Langkah 3: Baru hapus 'induk' (karakter itu sendiri).
+            cur.execute("DELETE FROM public.characters WHERE id = %s", (char_id,))
+            print(f"✅ Karakter ID {char_id} ('{char_name}') telah dihapus.")
+
+        conn.commit()
+        return {"message": f"Karakter ID {char_id} berhasil dihapus."}, 200
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        # Kita tambahkan detail errornya biar lebih informatif
+        print(f"❌ Error di delete_character: {e}")
+        return {"error": "Gagal menghapus karakter.", "detail": str(e)}, 500
+    finally:
+        if conn:
             conn.close()
 
 

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Judul akan diisi oleh JS -->
+    <title>Detail Karakter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/style.css') }}">
+    <!-- Kita butuh file CSS baru juga untuk halaman ini -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/character-detail.css') }}">
+</head>
+
+<body>
+
+    <div id="loader" class="full-page-loader">
+        <div class="spinner"></div>
+    </div>
+
+    <div id="character-detail-container" class="container hidden">
+        <!-- Kolom Kiri: Gambar dan Info Singkat -->
+        <!-- Kolom Kiri: Gambar dan Tombol Aksi -->
+        <div class="left-column">
+            <!-- Tombol Kembali ditaruh di paling atas -->
+            <a href="/" class="back-to-menu-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span>Kembali ke Menu</span>
+            </a>
+
+            <div class="char-image-wrapper">
+                <img id="char-avatar" src="" alt="Avatar Karakter">
+            </div>
+            <h1 id="char-name-left"></h1>
+            <p id="char-creator-info">by You</p>
+
+            <div class="action-buttons">
+                <!-- Tombol ini untuk memulai chat BARU -->
+                <button id="start-new-chat-btn" class="chat-btn primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>Mulai Chat Baru</span>
+                </button>
+                <!-- Tombol ini untuk melanjutkan chat terakhir (kita siapkan dulu) -->
+                <button id="continue-last-chat-btn" class="chat-btn secondary hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        <path d="M2 8c0-2.2.7-4.3 2-6"></path>
+                        <path d="M22 8c0-2.2-.7-4.3-2-6"></path>
+                    </svg>
+                    <span>Lanjutkan Chat Terakhir</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Kolom Kanan: Detail, Pengaturan, dan Opsi Lain -->
+        <div class="right-column">
+            <header class="right-header">
+                <h2>Pengaturan Karakter</h2>
+                <div class="header-actions">
+                    <button id="delete-btn" class="header-btn delete">Hapus</button>
+                    <button id="edit-btn" class="header-btn edit">Edit</button>
+                </div>
+            </header>
+
+            <div class="details-accordion">
+                <div class="accordion-item">
+                    <button class="accordion-header">
+                        <span>Pesan Pembuka (Greeting)</span>
+                        <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <p id="char-greeting"></p>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <button class="accordion-header">
+                        <span>Persona & Latar Belakang</span>
+                        <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <p id="char-persona"></p>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <button class="accordion-header">
+                        <span>Instruksi Sistem (System Prompt)</span>
+                        <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <p id="char-system-instruction"></p>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <button class="accordion-header">
+                        <span>Contoh Dialog</span>
+                        <span class="arrow">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <pre id="char-dialogs"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='assets/js/character-detail.js') }}" defer></script>
+</body>
+
+</html>

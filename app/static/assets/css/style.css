@@ -54,7 +54,44 @@ body {
     font-weight: 500;
 }
 
-.back-button,
+/* ===== GAYA UNTUK TOMBOL HOME BARU ===== */
+.home-button {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary, #b6b6b6);
+    text-decoration: none;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.home-button:hover {
+    color: var(--accent-primary, #BB86FC);
+    transform: scale(1.05);
+}
+
+/* Sedikit penyesuaian untuk header chat */
+.chat-header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    /* Kiri, Tengah, Kanan */
+    align-items: center;
+    padding: 15px 20px;
+}
+
+.home-button {
+    justify-self: start;
+    /* Rata kiri */
+}
+
+.character-info {
+    justify-self: center;
+    /* Rata tengah */
+}
+
+.header-menu {
+    justify-self: end;
+    /* Rata kanan */
+}
+
 /* style.css */
 .menu-button {
     background: none;
@@ -1106,10 +1143,6 @@ body {
 
 @media (max-width: 600px) {
 
-    body {
-        /* Hapus align-items agar container bisa memenuhi tinggi layar */
-    }
-
     .chat-container {
         height: 100vh;
         /* Gunakan 100vh di mobile biar full screen */
@@ -1171,6 +1204,61 @@ body {
         /* <-- UBAH ANGKA INI */
         line-height: 1.5;
         /* <-- Tambahkan ini biar jarak antar barisnya pas */
+    }
+
+    .chat-header {
+        padding: 10px 15px;
+        /* Sedikit lebih ringkas */
+    }
+
+    .home-button {
+        font-size: 1rem;
+        /* Perkecil font tombol home */
+    }
+
+    .chat-header .character-info h2 {
+        font-size: 1rem;
+        /* Perkecil juga nama karakter */
+    }
+
+    .message {
+        max-width: 90%;
+        /* Gelembung chat bisa sedikit lebih lebar */
+    }
+
+    .avatar {
+        width: 40px;
+        /* Perkecil avatar */
+        height: 40px;
+    }
+}
+
+
+/* ===== RESPONSIVE DESIGN FOR EDITOR PAGES ===== */
+@media (max-width: 768px) {
+    .editor-container {
+        height: 100vh;
+        max-height: none;
+        border-radius: 0;
+        padding: 15px;
+    }
+
+    .editor-header {
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+
+    .editor-header h1 {
+        font-size: 1.2rem;
+    }
+
+    /* Untuk header halaman persona yang 3 kolom */
+    .editor-header.persona-header {
+        gap: 10px;
+    }
+
+    .persona-header .header-center h1 {
+        text-align: center;
     }
 }
 
@@ -1683,4 +1771,433 @@ a.card-link-wrapper {
     min-width: 120px;
     /* Biar lebar teksnya gak loncat-loncat */
     text-align: center;
+}
+
+/* ===== GAYA UNTUK HALAMAN MENU UTAMA ===== */
+
+.main-menu-container {
+    width: 100%;
+    max-width: 1200px;
+    height: 95vh;
+    padding: 20px 30px;
+    background-color: #2f3136;
+    display: flex;
+    flex-direction: column;
+}
+
+.main-menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #40444b;
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+}
+
+.main-menu-header h1 {
+    color: #ffffff;
+    font-size: 1.8rem;
+}
+
+.create-char-btn {
+    background-color: #43b581;
+    color: #ffffff;
+    padding: 10px 18px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.create-char-btn:hover {
+    background-color: #3aa070;
+}
+
+/* Wadah untuk grid kartu */
+.character-grid-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-right: 15px;
+    /* Memberi ruang untuk scrollbar */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 25px;
+}
+
+/* Kartu Karakter Individual */
+.character-card {
+    background-color: #36393f;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.character-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.character-card .card-content {
+    padding: 15px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.character-card .card-title {
+    font-size: 1.2rem;
+    color: #ffffff;
+    margin-bottom: 10px;
+}
+
+.character-card .card-description {
+    font-size: 0.9rem;
+    color: #b9bbbe;
+    line-height: 1.5;
+    flex-grow: 1;
+}
+
+/* Bagian tombol-tombol di bawah kartu */
+.card-actions {
+    background-color: #2f3136;
+    padding: 10px 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.card-actions button {
+    flex-grow: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.card-actions .chat-btn {
+    background-color: #5865f2;
+    color: white;
+}
+
+.card-actions .chat-btn:hover {
+    background-color: #4a58d4;
+}
+
+.card-actions .edit-btn {
+    background-color: #4f545c;
+    color: #dcddde;
+}
+
+.card-actions .edit-btn:hover {
+    background-color: #5a6069;
+}
+
+/* ===== GAYA UNTUK HALAMAN PERSONA ===== */
+.persona-page .editor-header {
+    margin-bottom: 1.5rem;
+}
+
+.persona-form {
+    background-color: var(--bg-secondary, #2f3136);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border-color, #40444b);
+}
+
+.persona-form.hidden {
+    display: none;
+}
+
+.persona-form h2 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.form-actions .save-btn,
+.form-actions .cancel-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.form-actions .save-btn {
+    background-color: #43b581;
+    color: white;
+}
+
+.form-actions .cancel-btn {
+    background-color: transparent;
+    border: 1px solid var(--border-color, #4f545c);
+    color: var(--text-primary, #dcddde);
+}
+
+#persona-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.persona-item {
+    background-color: var(--bg-secondary, #2f3136);
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #40444b);
+    overflow: hidden;
+}
+
+.persona-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+}
+
+.persona-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.persona-info img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+.persona-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.persona-actions button {
+    background: none;
+    border: none;
+    color: var(--text-secondary, #b9bbbe);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.persona-actions button.delete-btn:hover {
+    background-color: #f04747;
+    color: white;
+}
+
+.persona-actions button.expand-btn {
+    transition: transform 0.3s ease;
+}
+
+.persona-item.expanded .expand-btn {
+    transform: rotate(180deg);
+}
+
+.persona-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 1rem;
+    border-top: 1px solid transparent;
+}
+
+.persona-item.expanded .persona-body {
+    max-height: 200px;
+    /* Atur tinggi maksimal konten */
+    padding: 1rem;
+    border-top-color: var(--border-color, #40444b);
+}
+
+.persona-body p {
+    white-space: pre-wrap;
+    margin: 0;
+}
+
+/* ===== GAYA UNTUK MODAL PEMILIHAN PERSONA ===== */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.persona-modal {
+    background-color: #2f3136;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    transform: scale(1);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.hidden .persona-modal {
+    transform: scale(0.95);
+}
+
+.persona-modal h2 {
+    padding: 1.5rem;
+    margin: 0;
+    border-bottom: 1px solid #40444b;
+}
+
+.persona-selection-list {
+    padding: 1rem;
+    overflow-y: auto;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.persona-choice-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.persona-choice-item:hover {
+    background-color: #36393f;
+}
+
+.persona-choice-item.selected {
+    border-color: #5865f2;
+    background-color: #3b3e44;
+}
+
+.persona-choice-item img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+}
+
+.persona-choice-info p {
+    margin: 0;
+    color: #b9bbbe;
+    font-size: 0.9rem;
+}
+
+.modal-actions {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #40444b;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.modal-actions button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+#apply-persona-btn {
+    background-color: #43b581;
+    color: white;
+}
+
+#cancel-persona-btn {
+    background-color: #4f545c;
+    color: white;
+}
+
+/* ===== GAYA UNTUK HEADER HALAMAN PERSONA ===== */
+.editor-header.persona-header {
+    display: flex;
+    /* Ganti ke flexbox biar lebih simpel */
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 1.5rem;
+    /* Pastikan margin bawahnya konsisten */
+}
+
+.persona-header .header-left {
+    justify-self: start;
+}
+
+.persona-header .header-center {
+    justify-self: center;
+}
+
+.persona-header .header-right {
+    justify-self: end;
+}
+
+/* ===== GAYA UNTUK TOMBOL IKON '+' BARU ===== */
+.add-new-btn {
+    background-color: #4f545c;
+    color: #dcddde;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.add-new-btn:hover {
+    background-color: #5865f2;
+    color: white;
+    transform: rotate(90deg);
+}
+
+.persona-actions button.edit-btn:hover {
+    background-color: #5865f2;
+    color: white;
+}
+
+.persona-actions button.set-default-btn:hover {
+    background-color: #43b581;
+    color: white;
+}
+
+.persona-actions button.set-default-btn:disabled {
+    background-color: #4f545c;
+    cursor: not-allowed;
+    color: #dcddde;
+}
+
+.persona-item.is-default {
+    border-left: 3px solid #43b581;
 }

@@ -16,7 +16,7 @@
     <div class="chat-container">
         <div id="model-notification" class="model-active-notification"></div>
         <header class="chat-header">
-            <button class="back-button">‹</button>
+            <a href="/" class="home-button">NovaAI</a>
             <div class="character-info">
                 <h2>Hana</h2>
             </div>
@@ -26,10 +26,10 @@
                 <div class="dropdown-menu hidden">
                     <a href="sessions.html">Muat Sesi Chat</a>
                     <a href="character-editor.html">Edit Karakter</a>
-                    <a href="user-editor.html">Edit Persona User</a>
+                    <a href="#" id="select-persona-link">Pilih Persona Aktif</a>
                     <a href="memory-editor.html">Edit Memori AI</a>
                     <a href="world-editor.html">Edit Info Dunia</a>
-                    <a href="#" id="edit-summary-link">Edit Ringkasan Chat</a> 
+                    <a href="#" id="edit-summary-link">Edit Ringkasan Chat</a>
                     <a href="npc-editor.html">Edit Karakter Sampingan (NPC)</a>
                     <a href="api-settings.html">API Settings</a>
                 </div>
@@ -82,7 +82,19 @@
             </div>
             <!-- ▲▲▲ SELESAI ▲▲▲ -->
         </footer>
-
+    </div>
+    <div id="persona-modal-overlay" class="modal-overlay hidden">
+        <div class="persona-modal">
+            <h2>Pilih Persona</h2>
+            <div id="persona-selection-list" class="persona-selection-list">
+                <!-- Daftar persona dari JS akan muncul di sini -->
+                <p>Memuat...</p>
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-persona-btn">Batal</button>
+                <button id="apply-persona-btn">Gunakan Persona Ini</button>
+            </div>
+        </div>
     </div>
     <script src="{{ url_for('static', filename='assets/js/script.js') }}" defer></script>
 </body>

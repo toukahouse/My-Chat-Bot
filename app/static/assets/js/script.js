@@ -12,7 +12,12 @@ const imageUploadInput = document.getElementById('image-upload-input');
 const imagePreviewContainer = document.getElementById('image-preview-container');
 const imagePreview = document.getElementById('image-preview');
 const removeImageButton = document.getElementById('remove-image-button');
-
+// ... setelah selektor tombol dan input
+const selectPersonaLink = document.getElementById('select-persona-link');
+const personaModalOverlay = document.getElementById('persona-modal-overlay');
+const personaSelectionList = document.getElementById('persona-selection-list');
+const cancelPersonaBtn = document.getElementById('cancel-persona-btn');
+const applyPersonaBtn = document.getElementById('apply-persona-btn');
 
 let chatHistory = [];
 let abortController = new AbortController();
@@ -23,7 +28,7 @@ let selectedFile = null;
 // let isSummarizing = false;
 const SUMMARY_INTERVAL = 10;
 // let activeImageInfo = null;// <-- TAMBAHKAN INI
-
+let activeUserPersona = null;
 // --- FUNGSI BARU: Manajer Status Tombol Kirim ---
 // GANTI TOTAL FUNGSI updateSendButtonState DENGAN INI
 function updateSendButtonState() {
@@ -72,6 +77,26 @@ function clearPendingImageFromStorage() {
 }
 
 async function loadChatHistory() {
+    const savedPersona = sessionStorage.getItem(`activePersona_${new URLSearchParams(window.location.search).get('session_id')}`);
+    if (savedPersona) {
+        activeUserPersona = JSON.parse(savedPersona);
+        console.log(`Persona aktif dimuat dari session: ${activeUserPersona.name}`);
+    } else {
+        // ▼▼▼ GANTI BLOK ELSE INI ▼▼▼
+        // Jika tidak ada, kita fetch SEMUA persona dan cari yang default
+        fetch('/api/personas')
+            .then(res => res.json())
+            .then(personas => {
+                const defaultPersona = personas.find(p => p.is_default);
+                if (defaultPersona) {
+                    activeUserPersona = defaultPersona;
+                    sessionStorage.setItem(`activePersona_${currentConversationId}`, JSON.stringify(activeUserPersona));
+                    console.log(`Persona default "${activeUserPersona.name}" telah dimuat.`);
+                } else {
+                    activeUserPersona = null;
+                }
+            });
+    }
     chatMessages.innerHTML = '';
     chatHistory = [];
     currentConversationId = null;
@@ -84,7 +109,28 @@ async function loadChatHistory() {
         currentConversationId = parseInt(sessionIdFromUrl);
         localStorage.setItem('lastActiveSessionId', currentConversationId);
         console.log(`Mencoba memuat sesi dari server. ID: ${currentConversationId}`);
+        const characterData = JSON.parse(localStorage.getItem('characterData') || '{}');
+        const characterId = characterData.id; // Asumsi ID karakter sudah tersimpan saat mulai chat
 
+        if (characterId) {
+            const editCharLink = dropdownMenu.querySelector('a[href="character-editor.html"]');
+            const editMemoryLink = dropdownMenu.querySelector('a[href="memory-editor.html"]');
+            const editWorldLink = dropdownMenu.querySelector('a[href="world-editor.html"]');
+            const editNpcLink = dropdownMenu.querySelector('a[href="npc-editor.html"]');
+            const editSummaryLink = document.getElementById('edit-summary-link');
+
+            if (editCharLink) editCharLink.href = `character-editor.html?id=${characterId}`;
+            // Untuk editor spesifik karakter, kita pakai 'char_id'
+            if (editMemoryLink) editMemoryLink.href = `memory-editor.html?char_id=${characterId}`;
+            if (editWorldLink) editWorldLink.href = `world-editor.html?char_id=${characterId}`;
+            if (editNpcLink) editNpcLink.href = `npc-editor.html?char_id=${characterId}`;
+            const loadSessionsLink = dropdownMenu.querySelector('a[href="sessions.html"]');
+            if (loadSessionsLink) loadSessionsLink.href = `sessions.html?char_id=${characterId}`;
+            if (editSummaryLink) editSummaryLink.href = `summarization-editor.html?session_id=${currentConversationId}`;
+
+        } else {
+            console.warn("Tidak dapat menemukan ID Karakter di localStorage untuk membuat link editor.");
+        }
         try {
             const response = await fetch(`/api/sessions/${currentConversationId}/messages`);
             if (!response.ok) {
@@ -262,10 +308,20 @@ function convertHtmlToMarkdown(htmlContent) {
 function createMessageBubble(sender, text, messageId = null, sequenceNumber = null, isError = false) {
     const savedCharData = localStorage.getItem('characterData');
     const characterData = savedCharData ? JSON.parse(savedCharData) : { name: "Hana" };
-    const savedUserData = localStorage.getItem('userData');
-    const userData = savedUserData ? JSON.parse(savedUserData) : { name: "User" };
-    const senderName = sender === 'user' ? userData.name : characterData.name;
-    const avatarUrl = sender === 'user' ? userData.avatar_url : characterData.avatar_url;
+    let senderName = '???'; // Default jika tidak ada persona
+    let avatarUrl = 'https://png.pngtree.com/png-vector/20191110/ourmid/pngtree-avatar-icon-profile-icon-member-login-vector-isolated-png-image_1978396.jpg'; // Avatar default
+
+    if (sender === 'user') {
+        if (activeUserPersona) {
+            senderName = activeUserPersona.name;
+            avatarUrl = activeUserPersona.avatar_url || 'https://png.pngtree.com/png-vector/20191110/ourmid/pngtree-avatar-icon-profile-icon-member-login-vector-isolated-png-image_1978396.jpg';
+        } else {
+            senderName = "Anda"; // Teks jika belum pilih persona
+        }
+    } else { // Jika pengirimnya AI
+        senderName = characterData.name;
+        avatarUrl = characterData.avatar_url;
+    }
 
     const messageDiv = document.createElement('div');
     messageDiv.id = messageId || `msg-${Date.now()}-${Math.random()}`;
@@ -897,10 +953,6 @@ async function getAiResponse(userMessage, fileToSend = null) {
         // Ambil SEMUA data string dari localStorage sekali jalan
         const apiSettingsString = localStorage.getItem('apiSettings') || '{}';
         const characterDataString = localStorage.getItem('characterData') || '{}';
-        const userDataString = localStorage.getItem('userData') || '{}';
-        const memoryDataString = localStorage.getItem('memoryData') || '[]';
-        const worldDataString = localStorage.getItem('worldData') || '[]';
-        const npcDataString = localStorage.getItem('npcData') || '[]';
 
         // Ambil summary dari server (ini tetap sama)
         let currentSummary = "";
@@ -916,10 +968,12 @@ async function getAiResponse(userMessage, fileToSend = null) {
 
         // Langsung kirim data dalam bentuk string, lebih efisien!
         formData.append('character', characterDataString);
-        formData.append('user', userDataString);
-        formData.append('memory', memoryDataString);
-        formData.append('world_info', worldDataString);
-        formData.append('npcs', npcDataString);
+        // Kode BARU
+        let userPayload = { name: "User", persona: "Seorang pengguna." }; // Default generik untuk AI
+        if (activeUserPersona) {
+            userPayload = { name: activeUserPersona.name, persona: activeUserPersona.persona };
+        }
+        formData.append('user', JSON.stringify(userPayload));
         formData.append('api_settings', apiSettingsString); // INI YANG UTAMA
 
         // Bagian ini juga disederhanakan, server sudah punya defaultnya
@@ -1196,13 +1250,6 @@ async function triggerAutoSummary(sessionId) {
 
 // HANYA ADA SATU BLOK INI DI SELURUH FILE
 document.addEventListener('DOMContentLoaded', () => {
-    const backToSessionsButton = document.querySelector('.back-button');
-    if (backToSessionsButton) {
-        backToSessionsButton.addEventListener('click', () => {
-            // Arahkan ke halaman daftar sesi
-            window.location.href = 'sessions.html';
-        });
-    }
     if (!document.querySelector('.chat-container')) return;
 
     // --- SETUP AWAL HALAMAN CHAT ---
@@ -1558,3 +1605,97 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+
+// --- FUNGSI-FUNGSI BARU UNTUK MODAL PERSONA ---
+let tempSelectedPersonaId = null;
+
+function openPersonaModal() {
+    if (!personaModalOverlay) return;
+    personaModalOverlay.classList.remove('hidden');
+    loadPersonasIntoModal();
+}
+
+function closePersonaModal() {
+    if (!personaModalOverlay) return;
+    personaModalOverlay.classList.add('hidden');
+}
+
+async function loadPersonasIntoModal() {
+    personaSelectionList.innerHTML = '<p>Memuat...</p>';
+    try {
+        const response = await fetch('/api/personas');
+        const personas = await response.json();
+        personaSelectionList.innerHTML = '';
+
+        if (personas.length === 0) {
+            personaSelectionList.innerHTML = '<p>Kamu belum punya persona. Buat dulu di halaman "My Personas".</p>';
+            return;
+        }
+
+        personas.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'persona-choice-item';
+            item.dataset.personaId = p.id;
+
+            // Tandai yang sedang aktif
+            if (activeUserPersona && activeUserPersona.id === p.id) {
+                item.classList.add('selected');
+                tempSelectedPersonaId = p.id;
+            }
+
+            const avatar = p.avatar_url || 'https://i.imgur.com/7iA7s2P.png';
+            item.innerHTML = `
+                <img src="${avatar}" alt="Avatar">
+                <div class="persona-choice-info">
+                    <h4>${p.name}</h4>
+                    <p>${p.persona.substring(0, 50)}...</p>
+                </div>
+            `;
+            item.addEventListener('click', () => selectPersonaInModal(p, item));
+            personaSelectionList.appendChild(item);
+        });
+    } catch (error) {
+        personaSelectionList.innerHTML = `<p style="color:red;">Gagal memuat: ${error.message}</p>`;
+    }
+}
+
+function selectPersonaInModal(personaData, selectedElement) {
+    // Hapus kelas 'selected' dari semua item lain
+    personaSelectionList.querySelectorAll('.persona-choice-item').forEach(el => el.classList.remove('selected'));
+    // Tambahkan ke item yang diklik
+    selectedElement.classList.add('selected');
+    // Simpan ID yang dipilih sementara
+    tempSelectedPersonaId = personaData.id;
+}
+
+async function applyPersonaSelection() {
+    if (!tempSelectedPersonaId) {
+        alert("Pilih dulu persona yang mau dipakai.");
+        return;
+    }
+    try {
+        // Kita perlu fetch data lengkap dari persona yang dipilih
+        const response = await fetch('/api/personas');
+        const personas = await response.json();
+        const chosenPersona = personas.find(p => p.id === tempSelectedPersonaId);
+
+        if (chosenPersona) {
+            activeUserPersona = chosenPersona;
+            // Simpan pilihan ke sessionStorage agar tidak hilang saat refresh
+            sessionStorage.setItem(`activePersona_${currentConversationId}`, JSON.stringify(activeUserPersona));
+            showToastNotification(`Persona diganti menjadi: ${activeUserPersona.name}`, 'success');
+        }
+        closePersonaModal();
+    } catch (error) {
+        alert("Gagal menerapkan persona.");
+    }
+}
+
+// Sambungkan fungsi ke tombol-tombolnya
+if (selectPersonaLink) selectPersonaLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    openPersonaModal();
+});
+if (cancelPersonaBtn) cancelPersonaBtn.addEventListener('click', closePersonaModal);
+if (applyPersonaBtn) applyPersonaBtn.addEventListener('click', applyPersonaSelection);

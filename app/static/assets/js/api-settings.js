@@ -8,75 +8,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const temperatureValue = document.getElementById('temperature-value');
     const topPSlider = document.getElementById('top-p-slider');
     const topPValue = document.getElementById('top-p-value');
-    const safetyDangerousSelect = document.getElementById('safety-dangerous');
-    // KAMUS PENERJEMAH NILAI SLIDER
-    // Urutan ini PENTING: dari paling bebas (kiri) ke paling ketat (kanan)
-    const safetyValueMap = [
-        'BLOCK_NONE',
-        'BLOCK_ONLY_HIGH',
-        'BLOCK_MEDIUM_AND_ABOVE',
-        'BLOCK_LOW_AND_ABOVE'
-    ];
 
-    const safetyDisplayMap = [
-        'Block None',
-        'Block High',
-        'Block Medium+',
-        'Block Low+ (Ketat)'
-    ];
-    // seleksi semua dropdown keamanan
-    // Seleksi semua slider dan outputnya
+    const safetyValueMap = ['BLOCK_NONE', 'BLOCK_ONLY_HIGH', 'BLOCK_MEDIUM_AND_ABOVE', 'BLOCK_LOW_AND_ABOVE'];
+    const safetyDisplayMap = ['Block None', 'Block High', 'Block Medium+', 'Block Low+ (Ketat)'];
+    
     const sliders = {
-        harassment: {
-            slider: document.getElementById('safety-harassment-slider'),
-            output: document.getElementById('safety-harassment-value')
-        },
-        hate: {
-            slider: document.getElementById('safety-hate-slider'),
-            output: document.getElementById('safety-hate-value')
-        },
-        sexually_explicit: {
-            slider: document.getElementById('safety-sexually-explicit-slider'),
-            output: document.getElementById('safety-sexually-explicit-value')
-        },
-        dangerous: {
-            slider: document.getElementById('safety-dangerous-slider'),
-            output: document.getElementById('safety-dangerous-value')
-        }
+        harassment: { slider: document.getElementById('safety-harassment-slider'), output: document.getElementById('safety-harassment-value') },
+        hate: { slider: document.getElementById('safety-hate-slider'), output: document.getElementById('safety-hate-value') },
+        sexually_explicit: { slider: document.getElementById('safety-sexually-explicit-slider'), output: document.getElementById('safety-sexually-explicit-value') },
+        dangerous: { slider: document.getElementById('safety-dangerous-slider'), output: document.getElementById('safety-dangerous-value') }
     };
-    // Kunci baru yang spesifik untuk pengaturan API di localStorage
-    const storageKey = 'apiSettings';
 
-    // 2. Fungsi untuk memuat pengaturan yang sudah ada
-    function loadApiSettings() {
-        const savedSettings = localStorage.getItem(storageKey);
+    function showNotification(message, isSuccess = true) {
+        notificationDiv.textContent = message;
+        notificationDiv.style.backgroundColor = isSuccess ? '#43b581' : '#f04747';
+        notificationDiv.classList.add('show');
+        setTimeout(() => {
+            notificationDiv.classList.remove('show');
+        }, 3000);
+    }
 
-        const defaultSettings = {
-            apiKey: '',
-            model: 'models/gemini-2.5-flash',
-            temperature: 0.9,
-            topP: 0.95,
-            safetySettings: {
-                harassment: 'BLOCK_NONE',
-                hate: 'BLOCK_NONE',
-                sexually_explicit: 'BLOCK_NONE',
-                dangerous: 'BLOCK_NONE'
-            }
-        };
-        const settings = savedSettings ? JSON.parse(savedSettings) : defaultSettings;
-        if (!settings.safetySettings) settings.safetySettings = defaultSettings.safetySettings;
-
-        modelSelect.value = settings.model || defaultSettings.model;
-        apiKeyInput.value = '';
-
-        temperatureSlider.value = settings.temperature || defaultSettings.temperature;
+    // 2. FUNGSI BARU: Mengisi form dari data server
+    function populateForm(settings) {
+        modelSelect.value = settings.model || 'models/gemini-2.5-flash';
+        temperatureSlider.value = settings.temperature || 0.9;
         temperatureValue.textContent = temperatureSlider.value;
-        topPSlider.value = settings.topP || defaultSettings.topP;
+        topPSlider.value = settings.topP || 0.95;
         topPValue.textContent = topPSlider.value;
+        apiKeyInput.value = ''; // Selalu kosongkan input API Key
 
-        // Loop untuk mengatur setiap slider
+        const safetySettings = settings.safetySettings || {};
         for (const key in sliders) {
-            const savedValue = settings.safetySettings[key] || 'BLOCK_NONE';
+            const savedValue = safetySettings[key] || 'BLOCK_NONE';
             const sliderIndex = safetyValueMap.indexOf(savedValue);
             if (sliderIndex !== -1) {
                 sliders[key].slider.value = sliderIndex;
@@ -86,37 +49,81 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 3. Fungsi untuk menyimpan pengaturan baru
-    function saveApiSettings() {
-        const newApiKey = apiKeyInput.value.trim();
-        const oldSettings = JSON.parse(localStorage.getItem(storageKey) || '{}');
-
-        // Buat objek safetySettings baru dari nilai slider
+    // 3. FUNGSI BARU: Mengambil data dari form
+    function getFormData() {
         const newSafetySettings = {};
         for (const key in sliders) {
             const sliderIndex = sliders[key].slider.value;
             newSafetySettings[key] = safetyValueMap[sliderIndex];
         }
 
-        const updatedSettings = {
-            apiKey: newApiKey ? newApiKey : oldSettings.apiKey,
+        const data = {
             model: modelSelect.value,
             temperature: parseFloat(temperatureSlider.value),
             topP: parseFloat(topPSlider.value),
-            safetySettings: newSafetySettings // <-- Gunakan objek yang baru dibuat
+            safetySettings: newSafetySettings
         };
 
-        localStorage.setItem(storageKey, JSON.stringify(updatedSettings));
-
-        notificationDiv.textContent = 'Pengaturan berhasil disimpan!';
-        notificationDiv.classList.add('show');
-        setTimeout(() => {
-            notificationDiv.classList.remove('show');
-        }, 3000);
-        apiKeyInput.value = '';
+        // Hanya tambahkan apiKey ke data jika user mengisinya
+        const newApiKey = apiKeyInput.value.trim();
+        if (newApiKey) {
+            data.apiKey = newApiKey;
+        }
+        
+        return data;
     }
 
-    // Listener untuk update angka saat slider digeser
+    // 4. FUNGSI UTAMA: Inisialisasi halaman (load data)
+    async function initializePage() {
+        try {
+            const response = await fetch('/api/api-settings');
+            if (!response.ok) {
+                throw new Error('Gagal memuat pengaturan API dari server.');
+            }
+            const data = await response.json();
+            populateForm(data);
+        } catch (error) {
+            showNotification(error.message, false);
+            document.querySelector('.editor-main').innerHTML = `<p style="color: #f04747;">${error.message}</p>`;
+        }
+    }
+
+    // 5. FUNGSI BARU: Kirim update ke server
+    async function handleUpdate() {
+        const formData = getFormData();
+        
+        try {
+            updateButton.disabled = true;
+            updateButton.textContent = 'Menyimpan...';
+
+            const response = await fetch('/api/api-settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Terjadi kesalahan di server.');
+            }
+
+            showNotification(result.message, true);
+
+        } catch (error) {
+            showNotification(`Gagal menyimpan: ${error.message}`, false);
+        } finally {
+            updateButton.disabled = false;
+            updateButton.textContent = 'Simpan Pengaturan';
+            apiKeyInput.value = ''; // Kosongkan lagi setelah mencoba save
+        }
+    }
+
+    // Fungsi helper dan event listener (tidak banyak berubah)
+    function updateSliderTrack(slider) {
+        const percentage = (slider.value - slider.min) / (slider.max - slider.min) * 100;
+        slider.style.background = `linear-gradient(to right, #5865f2 ${percentage}%, #4f545c ${percentage}%)`;
+    }
+
     temperatureSlider.addEventListener('input', () => {
         temperatureValue.textContent = temperatureSlider.value;
     });
@@ -124,29 +131,18 @@ document.addEventListener('DOMContentLoaded', () => {
     topPSlider.addEventListener('input', () => {
         topPValue.textContent = topPSlider.value;
     });
-    updateButton.addEventListener('click', saveApiSettings);
 
-    // Listener untuk semua slider keamanan
-
-    // 5. Muat pengaturan saat halaman pertama kali dibuka
-    loadApiSettings();
-    // Fungsi helper untuk update warna track
-    function updateSliderTrack(slider) {
-        const percentage = (slider.value - slider.min) / (slider.max - slider.min) * 100;
-        slider.style.background = `linear-gradient(to right, #5865f2 ${percentage}%, #4f545c ${percentage}%)`;
-    }
-
-    // Listener untuk semua slider keamanan
     for (const key in sliders) {
-        // Panggil sekali saat load biar warnanya sesuai
         updateSliderTrack(sliders[key].slider);
-
         sliders[key].slider.addEventListener('input', (event) => {
             const sliderIndex = event.target.value;
             sliders[key].output.textContent = safetyDisplayMap[sliderIndex];
-
-            // Panggil fungsi update warna setiap kali slider digeser
             updateSliderTrack(event.target);
         });
     }
+
+    updateButton.addEventListener('click', handleUpdate);
+
+    // 6. Jalankan semuanya
+    initializePage();
 });

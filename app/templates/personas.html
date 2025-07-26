@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Personas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/style.css') }}">
+    <!-- Kita akan tambahkan style spesifik di CSS utama nanti -->
+</head>
+
+<body>
+
+    <div class="editor-container persona-page">
+        <header class="editor-header persona-header">
+            <div class="header-left">
+                <a href="/" id="back-button" class="back-to-chat-btn">Kembali</a>
+            </div>
+            <div class="header-center">
+                <h1>My Personas</h1>
+            </div>
+            <div class="header-right">
+                <button id="show-create-form-btn" class="add-new-btn" title="Tambah Persona Baru">+</button>
+            </div>
+        </header>
+
+        <!-- FORM UNTUK MEMBUAT PERSONA BARU (AWALNYA TERSEMBUNYI) -->
+        <!-- PASTIKAN BLOK INI SAMA PERSIS -->
+        <div id="create-persona-form" class="persona-form hidden">
+            <h2>Buat Persona Baru</h2>
+            <div class="form-group">
+                <label for="new-persona-name">Nama Persona</label>
+                <input type="text" id="new-persona-name" placeholder="Contoh: Ksatria Pemberani">
+            </div>
+
+            <div class="form-group">
+                <label>Image (Opsional)</label>
+                <div id="persona-avatar-dropzone" class="dropzone">
+                    <div class="dz-message-empty">
+                        <div class="upload-icon">↑</div>
+                        <p>Drag & drop, or click to select</p>
+                        <small>Supports: PNG, JPG, GIF</small>
+                    </div>
+                    <div class="dz-message-preview">
+                        <img id="persona-avatar-preview" src="#" alt="Preview Avatar">
+                        <button type="button" id="remove-persona-avatar-btn" class="remove-btn">×</button>
+                    </div>
+                </div>
+                <input type="file" id="persona-avatar-upload" accept="image/png, image/jpeg, image/gif"
+                    style="display: none;">
+                <input type="hidden" id="new-persona-avatar">
+            </div>
+
+            <div class="form-group">
+                <label for="new-persona-desc">Deskripsi Persona</label>
+                <textarea id="new-persona-desc" rows="6"
+                    placeholder="Aku adalah seorang ksatria dari kerajaan utara..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button id="cancel-create-btn" class="cancel-btn">Batal</button>
+                <button id="save-persona-btn" class="save-btn">Simpan</button>
+            </div>
+        </div>
+
+        <main class="editor-main" id="persona-list-container">
+            <!-- Daftar persona akan dimuat di sini oleh JavaScript -->
+            <p class="loading-message">Memuat persona...</p>
+        </main>
+    </div>
+
+    <!-- Script JS khusus untuk halaman ini -->
+    <script src="{{ url_for('static', filename='assets/js/personas.js') }}" defer></script>
+</body>
+
+</html>
