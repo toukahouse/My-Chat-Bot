@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', () => {
         avatarPreview = document.getElementById('persona-avatar-preview');
         console.log("avatarPreview is:", avatarPreview);
 
+        videoPreview = document.getElementById('persona-video-preview'); // Kita pakai nama variabel baru
+        console.log("videoPreview is:", videoPreview);
+
         removeAvatarBtn = document.getElementById('remove-persona-avatar-btn');
         console.log("removeAvatarBtn is:", removeAvatarBtn);
 
@@ -55,27 +58,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- FUNGSI-FUNGSI HELPER (Termasuk Uploader) ---
+    // static/assets/js/personas.js
+
+    // Ganti total fungsi ini
+    // static/assets/js/personas.js
+
     function showPreview(base64String) {
-        if (!avatarPreview || !newPersonaAvatar || !emptyMessage || !previewMessage) return;
-        avatarPreview.src = base64String;
+        if (!avatarPreview || !videoPreview || !newPersonaAvatar || !emptyMessage || !previewMessage) return;
+
+        // KUNCI #1: Sembunyikan pesan "Drag & drop", tampilkan kotak preview
+        emptyMessage.style.display = 'none';
+        previewMessage.style.display = 'block';
+
+        // Sembunyikan kedua elemen media dulu
+        avatarPreview.style.display = 'none';
+        videoPreview.style.display = 'none';
+
+        // Tampilkan elemen media yang benar
+        if (base64String.startsWith('data:video')) {
+            videoPreview.src = base64String;
+            videoPreview.style.display = 'block';
+        } else {
+            avatarPreview.src = base64String;
+            avatarPreview.style.display = 'block';
+        }
+
+        // Simpan data base64 di input hidden
         newPersonaAvatar.value = base64String;
-        emptyMessage.classList.add('hidden-uploader-content');
-        previewMessage.classList.remove('hidden-uploader-content');
     }
 
+    // static/assets/js/personas.js
+
     function showEmpty() {
-        if (!avatarPreview || !newPersonaAvatar || !avatarUploadInput || !emptyMessage || !previewMessage) return;
+        if (!avatarPreview || !videoPreview || !newPersonaAvatar || !avatarUploadInput || !emptyMessage || !previewMessage) return;
+
+        // KUNCI #2: Tampilkan pesan "Drag & drop", sembunyikan total kotak preview
+        emptyMessage.style.display = 'block';
+        previewMessage.style.display = 'none';
+
+        // Reset elemen-elemennya juga untuk kebersihan
         avatarPreview.src = '#';
+        videoPreview.src = '';
         newPersonaAvatar.value = '';
         avatarUploadInput.value = '';
-        emptyMessage.classList.remove('hidden-uploader-content');
-        previewMessage.classList.add('hidden-uploader-content');
     }
 
     function handleFile(file) {
-        if (!file || !file.type.startsWith('image/')) {
-            alert('Hanya file gambar (PNG, JPG, GIF) yang diizinkan!');
+        if (!file || (!file.type.startsWith('image/') && !file.type.startsWith('video/'))) {
+            alert('Hanya file gambar (PNG, JPG, GIF) atau video (MP4, WEBM) yang diizinkan!');
             return;
         }
         const reader = new FileReader();
@@ -110,13 +140,27 @@ document.addEventListener('DOMContentLoaded', () => {
         item.className = 'persona-item';
         item.dataset.personaId = persona.id;
 
-        const avatar = persona.avatar_url || 'https://i.imgur.com/7iA7s2P.png';
+        const avatarUrl = persona.avatar_url || 'https://i.imgur.com/7iA7s2P.png';
+        // ▼▼▼ GANTI LOGIKA INI ▼▼▼
+        let avatarType = persona.avatar_type || 'image'; // Ambil dari API
+        // Jika dari API kosong dan URL-nya adalah video, kita perbaiki tipenya
+        if (avatarType === 'image' && (avatarUrl.endsWith('.mp4') || avatarUrl.endsWith('.webm'))) {
+            avatarType = 'video';
+        }
 
-        // Langkah 1: Buat cetakan HTML-nya dulu
+        // ▼▼▼ LOGIKA BARU DI SINI ▼▼▼
+        let avatarElement = '';
+        if (avatarType === 'video' && persona.avatar_url) { // Pastikan URL-nya ada
+            avatarElement = `<video src="${avatarUrl}" class="persona-avatar" autoplay loop muted playsinline></video>`;
+        } else {
+            avatarElement = `<img src="${avatarUrl}" alt="Avatar" class="persona-avatar">`;
+        }
+        // ▲▲▲ SELESAI ▲▲▲
+
         item.innerHTML = `
         <div class="persona-header">
             <div class="persona-info">
-                <img src="${avatar}" alt="Avatar">
+                ${avatarElement}
                 <span>${persona.name}</span>
             </div>
             <div class="persona-actions">
@@ -129,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="persona-body">
             <p>${persona.persona || 'Tidak ada deskripsi.'}</p>
         </div>
-    `;
+        `;
 
         // Langkah 2: SETELAH HTML jadi, baru kita cari tombol-tombol di dalamnya
         const setDefaultBtn = item.querySelector('.set-default-btn');
@@ -178,24 +222,41 @@ document.addEventListener('DOMContentLoaded', () => {
         return item;
     }
     // ▼▼▼ TAMBAHKAN FUNGSI BARU INI ▼▼▼
-    function startEditPersona(persona) {
-        // Tandai bahwa kita sedang dalam mode edit dan simpan ID-nya
-        editingPersonaId = persona.id;
+    // static/assets/js/personas.js
 
-        // Isi form dengan data persona yang ada
+    function startEditPersona(persona) {
+        editingPersonaId = persona.id;
         newPersonaName.value = persona.name;
         newPersonaDesc.value = persona.persona || '';
+
         if (persona.avatar_url) {
-            showPreview(persona.avatar_url);
+            const avatarUrl = persona.avatar_url;
+            // ▼▼▼ GANTI BARIS INI ▼▼▼
+            let avatarType = persona.avatar_type || 'image';
+            if (avatarType === 'image' && (avatarUrl.endsWith('.mp4') || avatarUrl.endsWith('.webm'))) {
+                avatarType = 'video';
+            }
+
+            avatarPreview.classList.add('hidden-preview');
+            videoPreview.classList.add('hidden-preview');
+
+            // ▼▼▼ GANTI KONDISI INI ▼▼▼
+            if (avatarType === 'video') {
+                // ▲▲▲ SELESAI ▲▲▲
+                videoPreview.src = avatarUrl;
+                videoPreview.classList.remove('hidden-preview');
+            } else {
+                avatarPreview.src = avatarUrl;
+                avatarPreview.classList.remove('hidden-preview');
+            }
+            emptyMessage.classList.add('hidden-uploader-content');
+            previewMessage.classList.remove('hidden-uploader-content');
         } else {
             showEmpty();
         }
 
-        // Ubah judul dan teks tombol form
         createPersonaForm.querySelector('h2').textContent = 'Edit Persona';
         savePersonaBtn.textContent = 'Simpan Perubahan';
-
-        // Tampilkan form
         showForm();
     }
     // ▲▲▲ SELESAI MENAMBAHKAN ▲▲▲
@@ -215,37 +276,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // GANTI TOTAL FUNGSI saveNewPersona DENGAN INI
+    // static/assets/js/personas.js
+
+    // ▼▼▼ GANTI TOTAL FUNGSI INI DENGAN VERSI BARU ▼▼▼
     async function handleSave() {
+        // 1. Buat paket FormData kosong
+        const formData = new FormData();
+
+        // 2. Kumpulkan semua data TEKS
         const name = newPersonaName.value.trim();
-        const avatar_url = newPersonaAvatar.value;
         const persona_desc = newPersonaDesc.value.trim();
 
         if (!name) {
             alert('Nama persona tidak boleh kosong!');
             return;
         }
+        formData.append('name', name);
+        formData.append('persona', persona_desc);
 
-        // Tentukan URL dan Method berdasarkan mode (edit atau buat baru)
+        // 3. Ambil FILE avatar yang dipilih dari input <input type="file">
+        const avatarFile = avatarUploadInput.files[0];
+        if (avatarFile) {
+            // Jika ada file, masukkan ke paket. Nama 'persona-avatar-file' harus unik
+            formData.append('persona-avatar-file', avatarFile);
+        }
+
+        // 4. Siapkan URL dan Method
         const isEditing = editingPersonaId !== null;
         const url = isEditing ? `/api/personas/${editingPersonaId}` : '/api/personas';
         const method = isEditing ? 'PUT' : 'POST';
 
         try {
+            // (Kamu bisa tambahkan logika disabled tombol di sini jika mau)
+            // savePersonaBtn.disabled = true;
+
+            // 5. Kirim data sebagai FormData
             const response = await fetch(url, {
                 method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name, avatar_url: avatar_url, persona: persona_desc })
+                // JANGAN SET 'Content-Type', biarkan browser yang atur
+                body: formData
             });
 
-            if (!response.ok) throw new Error('Gagal menyimpan perubahan ke server.');
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.error || 'Gagal menyimpan perubahan ke server.');
+            }
 
             hideForm();
             await loadPersonas(); // Muat ulang daftar untuk menampilkan perubahan
         } catch (error) {
             alert(error.message);
+        } finally {
+            // savePersonaBtn.disabled = false;
         }
     }
+    // ▲▲▲ SELESAI ▲▲▲
 
     async function deletePersona(id) {
         try {

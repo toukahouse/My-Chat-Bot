@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Ambil semua elemen penting
     const container = document.getElementById('character-detail-container');
     const loader = document.getElementById('loader');
-    const charAvatar = document.getElementById('char-avatar');
+    const avatarPlaceholder = document.getElementById('avatar-placeholder');
     const charNameLeft = document.getElementById('char-name-left');
     const startNewChatBtn = document.getElementById('start-new-chat-btn');
     const charGreeting = document.getElementById('char-greeting');
@@ -36,9 +36,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             // Isi semua elemen dengan data dari server
-            document.title = data.name; // Ganti judul tab browser
-            charAvatar.src = data.avatar_url || 'https://i.imgur.com/7iA7s2P.png';
+            document.title = data.name;
             charNameLeft.textContent = data.name;
+
+            // Logika untuk menampilkan avatar (gambar atau video)
+            const avatarUrl = data.avatar_url;
+            const avatarType = data.avatar_type || 'image';
+
+            if (avatarUrl) {
+                let avatarElement = '';
+                if (avatarType === 'video') {
+                    avatarElement = `<video src="${avatarUrl}" autoplay loop muted playsinline></video>`;
+                } else { // Untuk 'image' dan 'gif'
+                    avatarElement = `<img src="${avatarUrl}" alt="Avatar Karakter">`;
+                }
+                avatarPlaceholder.innerHTML = avatarElement; // Ganti ini
+            } else {
+                avatarPlaceholder.innerHTML = `<img src="https://i.imgur.com/7iA7s2P.png" alt="Avatar Karakter">`; // Ganti ini juga
+            }
+
             charGreeting.textContent = data.greeting || 'Tidak ada sapaan.';
             charPersona.textContent = data.persona || 'Tidak ada persona.';
             charSystemInstruction.textContent = data.system_instruction || 'Tidak ada instruksi sistem.';

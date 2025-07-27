@@ -308,19 +308,33 @@ function convertHtmlToMarkdown(htmlContent) {
 function createMessageBubble(sender, text, messageId = null, sequenceNumber = null, isError = false) {
     const savedCharData = localStorage.getItem('characterData');
     const characterData = savedCharData ? JSON.parse(savedCharData) : { name: "Hana" };
-    let senderName = '???'; // Default jika tidak ada persona
+    let senderName = '???';
     let avatarUrl = 'https://png.pngtree.com/png-vector/20191110/ourmid/pngtree-avatar-icon-profile-icon-member-login-vector-isolated-png-image_1978396.jpg'; // Avatar default
+
+    // ▼▼▼ BAGIAN PENTING DIMULAI DI SINI ▼▼▼
+    let avatarType = 'image';
+    let avatarElement = '';
 
     if (sender === 'user') {
         if (activeUserPersona) {
             senderName = activeUserPersona.name;
-            avatarUrl = activeUserPersona.avatar_url || 'https://png.pngtree.com/png-vector/20191110/ourmid/pngtree-avatar-icon-profile-icon-member-login-vector-isolated-png-image_1978396.jpg';
+            avatarUrl = activeUserPersona.avatar_url || '...';
+            // Ambil tipe avatar dari data persona, atau tebak dari URL
+            avatarType = activeUserPersona.avatar_type || (avatarUrl.includes('.mp4') || avatarUrl.includes('.webm') ? 'video' : 'image');
         } else {
-            senderName = "Anda"; // Teks jika belum pilih persona
+            senderName = "Anda";
         }
     } else { // Jika pengirimnya AI
         senderName = characterData.name;
         avatarUrl = characterData.avatar_url;
+        avatarType = characterData.avatar_type || 'image'; // Ambil dari data karakter
+    }
+
+    // Buat elemen avatar berdasarkan tipenya
+    if (avatarType === 'video' && avatarUrl) {
+        avatarElement = `<video src="${avatarUrl}" class="avatar" autoplay loop muted playsinline></video>`;
+    } else {
+        avatarElement = `<img src="${avatarUrl}" alt="Avatar" class="avatar">`;
     }
 
     const messageDiv = document.createElement('div');
@@ -372,7 +386,7 @@ function createMessageBubble(sender, text, messageId = null, sequenceNumber = nu
     }
 
     messageDiv.innerHTML = `
-        <img src="${avatarUrl}" alt="Avatar" class="avatar">
+        ${avatarElement}
         <div class="message-content">
             <span class="message-sender">${senderName}</span>
             <div class="message-text"><p>${text}</p></div>
@@ -666,16 +680,23 @@ function typewriterEffect(element, text, speed = 10) {
 
 // GANTI LAGI FUNGSI LAMA DENGAN VERSI "SULTAN" INI
 // GANTI LAGI DENGAN VERSI FINAL "FISIKA PEGAS" INI
-function createAvatarPopup(imageUrl) {
+function createAvatarPopup(mediaUrl, mediaType = 'image') {
     const existingPopup = document.querySelector('.avatar-popup-draggable');
     if (existingPopup) existingPopup.remove();
 
     const popup = document.createElement('div');
     popup.className = 'avatar-popup-draggable';
+    let mediaElement = '';
+    if (mediaType === 'video') {
+        mediaElement = `<video src="${mediaUrl}" autoplay loop muted playsinline></video>`;
+    } else {
+        mediaElement = `<img src="${mediaUrl}" alt="Avatar">`;
+    }
+
     popup.innerHTML = `
-        <img src="${imageUrl}" alt="Avatar">
-        <button class="popup-close-btn">×</button>
-    `;
+    ${mediaElement}
+    <button class="popup-close-btn">×</button>
+`;
     document.body.appendChild(popup);
 
     const closeBtn = popup.querySelector('.popup-close-btn');
@@ -1381,14 +1402,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const target = e.target;
         const messageBubble = target.closest('.message');
         if (target.classList.contains('avatar')) {
-            e.preventDefault(); // Mencegah aksi default jika avatar ada di dalam link
-
-            // Ambil URL gambar dari elemen yang diklik
-            const imageUrl = target.src;
-
-            // Panggil fungsi untuk membuat dan menampilkan popup
-            createAvatarPopup(imageUrl);
-            return; // Hentikan eksekusi lebih lanjut
+            e.preventDefault();
+            const mediaUrl = target.src;
+            // Cek tipe elemen yang diklik
+            const mediaType = target.tagName.toLowerCase() === 'video' ? 'video' : 'image';
+            createAvatarPopup(mediaUrl, mediaType); // Kirim tipenya juga
+            return;
         }
         if (!messageBubble) return;
         const dropdown = messageBubble.querySelector('.message-dropdown-menu');
@@ -1639,14 +1658,17 @@ async function loadPersonasIntoModal() {
             item.dataset.personaId = p.id;
 
             // Tandai yang sedang aktif
-            if (activeUserPersona && activeUserPersona.id === p.id) {
-                item.classList.add('selected');
-                tempSelectedPersonaId = p.id;
-            }
+            const avatarUrl = p.avatar_url || 'https://i.imgur.com/7iA7s2P.png';
+            const avatarType = p.avatar_type || 'image';
+            let avatarElement = '';
 
-            const avatar = p.avatar_url || 'https://i.imgur.com/7iA7s2P.png';
+            if (avatarType === 'video' && p.avatar_url) {
+                avatarElement = `<video src="${avatarUrl}" autoplay loop muted playsinline></video>`;
+            } else {
+                avatarElement = `<img src="${avatarUrl}" alt="Avatar">`;
+            }
             item.innerHTML = `
-                <img src="${avatar}" alt="Avatar">
+                ${avatarElement}
                 <div class="persona-choice-info">
                     <h4>${p.name}</h4>
                     <p>${p.persona.substring(0, 50)}...</p>

@@ -1,12 +1,14 @@
 import os
 import json
-from flask import Flask, request, Response, render_template
+from flask import Flask, request, Response, render_template, url_for
 from dotenv import load_dotenv
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import psycopg2
 from urllib.parse import urlparse
 from waitress import serve
+import time
+import uuid
 import re
 
 try:
@@ -22,10 +24,10 @@ app = Flask(__name__)
 # GANTI BARIS CORS(app) DENGAN INI
 CORS(app, origins="*", methods=["GET", "POST", "OPTIONS"], headers=["Content-Type"])
 
-UPLOAD_FOLDER = "temp_uploads"
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+UPLOAD_FOLDER_PATH = os.path.join(app.root_path, "static", "uploads")
+if not os.path.exists(UPLOAD_FOLDER_PATH):
+    os.makedirs(UPLOAD_FOLDER_PATH)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER_PATH
 
 
 # === FUNGSI STREAM GENERATOR (SEKARANG DI LUAR 'CHAT') ===
@@ -368,7 +370,24 @@ def sanitize_text_for_summary(text):
     return text
 
 
-# GANTI SELURUH FUNGSI LAMA DENGAN VERSI YANG BENAR INI
+# Taruh ini di app.py, misalnya di bawah UPLOAD_FOLDER
+
+
+# app.py
+
+
+def get_avatar_type_from_base64(base64_string):
+    """Mendeteksi tipe file dari header data URI base64."""
+    if not base64_string:
+        return "image"  # Default jika kosong
+    if base64_string.startswith("data:image/gif"):
+        return "gif"
+    # ▼▼▼ TAMBAHKAN KONDISI INI ▼▼▼
+    if base64_string.startswith("data:video/"):
+        return "video"
+    return "image"
+
+
 # GANTI TOTAL FUNGSI INI DI app.py
 def check_and_summarize_if_needed(conversation_id, conn, selected_model):
     SUMMARY_INTERVAL = 11
@@ -967,6 +986,27 @@ def create_new_session():
 
 
 # --- API UNTUK WORLD INFO ---
+@app.route("/api/characters/<int:char_id>/memories", methods=["GET"])
+def get_character_memories(char_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT memories FROM public.characters WHERE id = %s", (char_id,)
+            )
+            result = cur.fetchone()
+            if not result:
+                return {"error": "Karakter tidak ditemukan"}, 404
+            return {"memories": result[0] or []}, 200
+    except Exception as e:
+        print(f"❌ Error di get_character_memories: {e}")
+        return {"error": "Gagal mengambil data memori"}, 500
+    finally:
+        if conn:
+            conn.close()
+
+
 @app.route("/api/characters/<int:char_id>/world_info", methods=["GET"])
 def get_character_world_info(char_id):
     conn = None
@@ -979,7 +1019,6 @@ def get_character_world_info(char_id):
             result = cur.fetchone()
             if not result:
                 return {"error": "Karakter tidak ditemukan"}, 404
-            # Kembalikan list info dunia, atau list kosong jika null
             return {"world_info": result[0] or []}, 200
     except Exception as e:
         print(f"❌ Error di get_character_world_info: {e}")
@@ -1078,7 +1117,7 @@ def get_all_characters():
 
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, name, avatar_url, persona, updated_at FROM public.characters ORDER BY updated_at DESC"
+                "SELECT id, name, avatar_url, persona, updated_at, avatar_type FROM public.characters ORDER BY updated_at DESC"
             )
             characters_from_db = cur.fetchall()
 
@@ -1089,10 +1128,9 @@ def get_all_characters():
                     "id": row[0],
                     "name": row[1],
                     "avatar_url": row[2],
-                    "description": row[
-                        3
-                    ],  # Kita pakai 'persona' sebagai deskripsi singkat
+                    "description": row[3],
                     "updated_at": row[4].isoformat() if row[4] else None,
+                    "avatar_type": row[5] or "image",  # Tambahkan ini
                 }
             )
 
@@ -1267,19 +1305,22 @@ def get_all_personas():
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, name, avatar_url, persona, is_default, updated_at FROM public.personas ORDER BY updated_at DESC"
+                "SELECT id, name, avatar_url, avatar_type, persona, is_default, updated_at FROM public.personas ORDER BY updated_at DESC"
             )
+            # ▲▲▲ SELESAI ▲▲▲
             personas_from_db = cur.fetchall()
         personas_list = []
         for row in personas_from_db:
+            # ▼▼▼ MODIFIKASI DI SINI ▼▼▼
             personas_list.append(
                 {
                     "id": row[0],
                     "name": row[1],
                     "avatar_url": row[2],
-                    "persona": row[3],
-                    "is_default": row[4],
-                    "updated_at": row[5].isoformat() if row[5] else None,
+                    "avatar_type": row[3] or "image",  # Tambahkan ini!
+                    "persona": row[4],
+                    "is_default": row[5],
+                    "updated_at": row[6].isoformat() if row[6] else None,
                 }
             )
         return personas_list, 200
@@ -1296,19 +1337,38 @@ def get_all_personas():
 def create_persona():
     conn = None
     try:
-        data = request.json
+        data = request.form
         name = data.get("name")
         if not name:
             return {"error": "Nama persona wajib diisi."}, 400
 
-        avatar_url = data.get("avatar_url")
         persona_text = data.get("persona")
+        avatar_url = None
+        avatar_type = "image"
+
+        if "persona-avatar-file" in request.files:
+            file = request.files["persona-avatar-file"]
+            if file.filename != "":
+                file_ext = os.path.splitext(file.filename)[1]
+                unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+                file_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
+                file.save(file_path)
+
+                timestamp = int(time.time())
+                avatar_url = url_for(
+                    "static", filename=f"uploads/{unique_filename}", v=timestamp
+                )
+
+                if file_ext.lower() in [".mp4", ".webm"]:
+                    avatar_type = "video"
+                elif file_ext.lower() == ".gif":
+                    avatar_type = "gif"
 
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO public.personas (name, avatar_url, persona) VALUES (%s, %s, %s) RETURNING id;",
-                (name, avatar_url, persona_text),
+                "INSERT INTO public.personas (name, avatar_url, avatar_type, persona) VALUES (%s, %s, %s, %s) RETURNING id;",
+                (name, avatar_url, avatar_type, persona_text),
             )
             new_id = cur.fetchone()[0]
         conn.commit()
@@ -1334,27 +1394,64 @@ def get_single_persona(persona_id):
 def update_persona(persona_id):
     conn = None
     try:
-        data = request.json
+        data = request.form
         name = data.get("name")
         if not name:
-            return {"error": "Nama persona tidak boleh kosong."}, 400
+            return {"error": "Nama persona wajib diisi."}, 400
 
-        avatar_url = data.get("avatar_url")
         persona_text = data.get("persona")
-
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute(
+                "SELECT avatar_url, avatar_type FROM public.personas WHERE id = %s",
+                (persona_id,),
+            )
+            old_data = cur.fetchone()
+            if not old_data:
+                return {"error": "Persona tidak ditemukan"}, 404
+
+            avatar_url, avatar_type = old_data
+
+            if "persona-avatar-file" in request.files:
+                file = request.files["persona-avatar-file"]
+                if file.filename != "":
+                    if avatar_url:
+                        old_filename = avatar_url.split("/")[-1].split("?")[0]
+                        old_filepath = os.path.join(
+                            app.config["UPLOAD_FOLDER"], old_filename
+                        )
+                        if os.path.exists(old_filepath):
+                            os.remove(old_filepath)
+
+                    file_ext = os.path.splitext(file.filename)[1]
+                    unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+                    file_path = os.path.join(
+                        app.config["UPLOAD_FOLDER"], unique_filename
+                    )
+                    file.save(file_path)
+
+                    timestamp = int(time.time())
+                    avatar_url = url_for(
+                        "static", filename=f"uploads/{unique_filename}", v=timestamp
+                    )
+
+                    if file_ext.lower() in [".mp4", ".webm"]:
+                        avatar_type = "video"
+                    elif file_ext.lower() == ".gif":
+                        avatar_type = "gif"
+                    else:
+                        avatar_type = "image"
+
+            cur.execute(
                 """
                 UPDATE public.personas
-                SET name = %s, avatar_url = %s, persona = %s, updated_at = NOW()
+                SET name = %s, avatar_url = %s, avatar_type = %s, persona = %s, updated_at = NOW()
                 WHERE id = %s;
                 """,
-                (name, avatar_url, persona_text, persona_id),
+                (name, avatar_url, avatar_type, persona_text, persona_id),
             )
         conn.commit()
         return {"message": f"Persona ID {persona_id} berhasil diupdate!"}, 200
-
     except Exception as e:
         if conn:
             conn.rollback()
@@ -1390,9 +1487,9 @@ def delete_persona(persona_id):
 def create_character():
     conn = None
     try:
-        data = request.json
+        # Sekarang kita pakai request.form, bukan request.json
+        data = request.form
         name = data.get("name")
-        avatar_url = data.get("avatar_url")
         greeting = data.get("greeting")
         persona = data.get("persona")
         example_dialogs = data.get("example_dialogs")
@@ -1401,18 +1498,46 @@ def create_character():
         if not name:
             return {"error": "Nama karakter wajib diisi."}, 400
 
+        # --- LOGIKA UPLOAD AVATAR BARU ---
+        avatar_url = None  # Defaultnya kosong
+        avatar_type = "image"  # Defaultnya image
+
+        if "char-avatar-file" in request.files:
+            file = request.files["char-avatar-file"]
+            if file.filename != "":
+                # Ambil ekstensi file (contoh: .mp4, .png)
+                file_ext = os.path.splitext(file.filename)[1]
+                # Buat nama file unik biar gak tabrakan
+                unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+
+                # Path lengkap untuk menyimpan file
+                file_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
+                file.save(file_path)  # Simpan file fisik ke folder
+
+                # Yang kita simpan di DB adalah URL-nya!
+                timestamp = int(time.time())
+                avatar_url = url_for(
+                    "static", filename=f"uploads/{unique_filename}", v=timestamp
+                )
+
+                # Tentukan tipe avatar berdasarkan ekstensi
+                if file_ext.lower() in [".mp4", ".webm"]:
+                    avatar_type = "video"
+                elif file_ext.lower() == ".gif":
+                    avatar_type = "gif"
+
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Perintah INSERT kembali simpel
             cur.execute(
                 """
-                INSERT INTO public.characters (name, avatar_url, greeting, persona, example_dialogs, system_instruction, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                INSERT INTO public.characters (name, avatar_url, avatar_type, greeting, persona, example_dialogs, system_instruction, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                 RETURNING id;
                 """,
                 (
                     name,
-                    avatar_url,
+                    avatar_url,  # URL atau None
+                    avatar_type,
                     greeting,
                     persona,
                     example_dialogs,
@@ -1486,6 +1611,7 @@ def get_single_character(char_id):
                 "npcs": char_data.get("npcs") or [],
                 # Kirim ID sesi terakhir ke frontend
                 "last_session_id": last_session_id,
+                "avatar_type": char_data.get("avatar_type") or "image",
             }
         return character_response, 200
 
@@ -1498,13 +1624,15 @@ def get_single_character(char_id):
 
 
 # GANTI TOTAL FUNGSI update_character
+# app.py
+
+
 @app.route("/api/characters/<int:char_id>", methods=["PUT"])
 def update_character(char_id):
     conn = None
     try:
-        data = request.json
+        data = request.form
         name = data.get("name")
-        avatar_url = data.get("avatar_url")
         greeting = data.get("greeting")
         persona = data.get("persona")
         example_dialogs = data.get("example_dialogs")
@@ -1515,12 +1643,56 @@ def update_character(char_id):
 
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Perintah UPDATE kembali simpel
+            # Ambil dulu data lama untuk cek file avatar
+            cur.execute(
+                "SELECT avatar_url, avatar_type FROM public.characters WHERE id = %s",
+                (char_id,),
+            )
+            old_data = cur.fetchone()
+            if not old_data:
+                return {"error": "Karakter tidak ditemukan"}, 404
+
+            avatar_url, avatar_type = old_data
+
+            # --- LOGIKA UPLOAD AVATAR BARU (UPDATE) ---
+            if "char-avatar-file" in request.files:
+                file = request.files["char-avatar-file"]
+                if file.filename != "":
+                    # Jika ada file baru, hapus file lama (jika ada)
+                    if avatar_url:
+                        old_filename = avatar_url.split("/")[-1]
+                        old_filepath = os.path.join(
+                            app.config["UPLOAD_FOLDER"], old_filename
+                        )
+                        if os.path.exists(old_filepath):
+                            os.remove(old_filepath)
+                            print(f"✅ File lama '{old_filename}' dihapus.")
+
+                    # Proses simpan file baru (sama seperti create)
+                    file_ext = os.path.splitext(file.filename)[1]
+                    unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+                    file_path = os.path.join(
+                        app.config["UPLOAD_FOLDER"], unique_filename
+                    )
+                    file.save(file_path)
+                    avatar_url = url_for(
+                        "static", filename=f"uploads/{unique_filename}"
+                    )
+
+                    if file_ext.lower() in [".mp4", ".webm"]:
+                        avatar_type = "video"
+                    elif file_ext.lower() == ".gif":
+                        avatar_type = "gif"
+                    else:
+                        avatar_type = "image"
+
+            # --- SELESAI LOGIKA UPLOAD ---
+
             cur.execute(
                 """
                 UPDATE public.characters
                 SET name = %s, avatar_url = %s, greeting = %s, persona = %s,
-                    example_dialogs = %s, system_instruction = %s, updated_at = NOW()
+                    example_dialogs = %s, system_instruction = %s, avatar_type = %s, updated_at = NOW()
                 WHERE id = %s;
                 """,
                 (
@@ -1530,6 +1702,7 @@ def update_character(char_id):
                     persona,
                     example_dialogs,
                     system_instruction,
+                    avatar_type,
                     char_id,
                 ),
             )
@@ -1547,38 +1720,12 @@ def update_character(char_id):
             conn.close()
 
 
-@app.route("/api/characters/<int:char_id>/memories", methods=["GET"])
-def get_character_memories(char_id):
-    conn = None
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT memories FROM public.characters WHERE id = %s", (char_id,)
-            )
-            result = cur.fetchone()
-            if not result:
-                return {"error": "Karakter tidak ditemukan"}, 404
-            # Kembalikan list memori, atau list kosong jika null
-            return {"memories": result[0] or []}, 200
-    except Exception as e:
-        print(f"❌ Error di get_character_memories: {e}")
-        return {"error": "Gagal mengambil data memori"}, 500
-    finally:
-        if conn:
-            conn.close()
-
-
 @app.route("/api/characters/<int:char_id>/memories", methods=["PUT"])
 def update_character_memories(char_id):
     conn = None
     try:
-        # Data yang dikirim dari JS adalah sebuah object dengan key 'memories'
-        # yang isinya adalah array of strings.
         data = request.json
         memories_list = data.get("memories", [])
-
-        # Ubah list python jadi string format JSON untuk disimpan di DB
         memories_json = json.dumps(memories_list)
 
         conn = get_db_connection()
@@ -1607,17 +1754,35 @@ def delete_character(char_id):
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Langkah 0: Dapatkan nama karakter yang akan dihapus
-            cur.execute("SELECT name FROM public.characters WHERE id = %s", (char_id,))
-            char_name_result = cur.fetchone()
-            if not char_name_result:
-                return {
-                    "message": "Karakter sudah tidak ada."
-                }, 200  # Anggap sudah terhapus
+            cur.execute(
+                "SELECT name, avatar_url FROM public.characters WHERE id = %s",
+                (char_id,),
+            )
+            char_data_result = cur.fetchone()
+            if not char_data_result:
+                return {"message": "Karakter sudah tidak ada."}, 200
 
-            char_name = char_name_result[0]
+            char_name, avatar_url = char_data_result
 
-            # Langkah 1: Hapus semua 'cucu' (pesan) yang terkait dengan sesi karakter ini.
-            # Kita menggunakan subquery untuk menemukan ID conversation yang benar.
+            # Langkah 0.5 (BARU): Hapus file fisik avatar jika ada
+            if avatar_url:
+                try:
+                    # Ekstrak nama file dari URL (misal: dari '/static/uploads/file.mp4' jadi 'file.mp4')
+                    filename = avatar_url.split("/")[-1].split("?")[
+                        0
+                    ]  # Split '?' untuk hapus cache buster
+                    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                        print(f"✅ File avatar fisik '{filename}' berhasil dihapus.")
+                    else:
+                        print(
+                            f"⚠️ File avatar fisik '{filename}' tidak ditemukan untuk dihapus (mungkin sudah terhapus)."
+                        )
+                except Exception as e:
+                    # Tetap lanjutkan proses hapus dari DB meskipun hapus file fisik gagal
+                    print(f"❌ Gagal menghapus file avatar fisik: {e}")
             cur.execute(
                 "DELETE FROM public.message WHERE conversation_id IN (SELECT id FROM public.conversation WHERE character_name = %s)",
                 (char_name,),

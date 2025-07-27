@@ -6,26 +6,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!characterGrid) return;
 
 
-
-    // Fungsi untuk membuat satu kartu karakter
-    // GANTI FUNGSI LAMA DENGAN INI
     function createCharacterCard(character) {
         const card = document.createElement('div');
         card.className = 'character-card';
         card.dataset.characterId = character.id;
 
-        const avatar = character.avatar_url || "https://i.imgur.com/7iA7s2P.png";
+        const avatarUrl = character.avatar_url || "https://i.imgur.com/7iA7s2P.png";
         const shortDescription = character.description || 'Tidak ada deskripsi.';
+
+        let avatarElement = '';
+        const avatarType = character.avatar_type || 'image';
+
+        // ▼▼▼ MODIFIKASI TOTAL BLOK LOGIKA INI ▼▼▼
+        if (avatarType === 'video') {
+            // Jika tipenya video, kita pakai tag <video>
+            // autoplay, loop, muted, playsinline itu wajib biar videonya bisa main otomatis tanpa kontrol
+            avatarElement = `<video src="${avatarUrl}" class="card-image" autoplay loop muted playsinline></video>`;
+        } else {
+            // Untuk 'image' dan 'gif', kita tetap pakai tag <img>
+            avatarElement = `<img src="${avatarUrl}" alt="Avatar ${character.name}" class="card-image">`;
+        }
+        // ▲▲▲ SELESAI ▲▲▲
 
         card.innerHTML = `
         <div class="card-image-container">
-            <img src="${avatar}" alt="Avatar ${character.name}" class="card-image">
+            ${avatarElement}
         </div>
         <div class="card-content">
             <h3 class="card-title">${character.name}</h3>
             <p class="card-description">${shortDescription}</p>
         </div>
     `;
+
         return card;
     }
 

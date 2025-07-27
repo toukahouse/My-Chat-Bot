@@ -53,30 +53,42 @@ window.onload = () => {
             for (const session of allSessions) {
                 const sessionCard = document.createElement('div');
                 sessionCard.className = 'session-card';
-                sessionCard.dataset.sessionId = session.id; // Simpan ID di elemen
+                sessionCard.dataset.sessionId = session.id;
 
                 const timeAgo = dayjs(session.timestamp).fromNow();
                 const characterName = session.character_name || 'Karakter';
-                const characterAvatar = session.character_avatar || 'assets/img/default-avatar.png'; // Ganti dengan path avatar default kamu
+                const characterAvatarUrl = session.character_avatar || 'assets/img/default-avatar.png';
                 const summaryText = session.summary || 'Belum ada ringkasan untuk sesi ini.';
                 const messageCount = session.message_count || 0;
 
+                // ▼▼▼ LOGIKA BARU DI SINI ▼▼▼
+                // Kita belum kirim avatar_type ke API sesi, jadi kita tebak dari URL-nya
+                const avatarType = characterAvatarUrl.includes('.mp4') || characterAvatarUrl.includes('.webm') ? 'video' : 'image';
+                let avatarElement = '';
+
+                if (avatarType === 'video' && session.character_avatar) {
+                    avatarElement = `<video src="${characterAvatarUrl}" class="card-image" autoplay loop muted playsinline></video>`;
+                } else {
+                    avatarElement = `<img src="${characterAvatarUrl}" alt="Avatar Karakter" class="card-image">`;
+                }
+                // ▲▲▲ SELESAI ▲▲▲
+
                 sessionCard.innerHTML = `
-                    <a href="index.html?session_id=${session.id}" class="card-link-wrapper">
-                        <div class="card-image-container">
-                            <img src="${characterAvatar}" alt="Avatar Karakter" class="card-image">
-                        </div>
-                        <div class="card-content">
-                            <h3 class="card-title">${characterName}</h3>
-                            <p class="card-summary">${summaryText}</p>
-                            <div class="card-footer">
-                                <span class="card-timestamp">${timeAgo}</span>
-                                <span class="card-message-count">${messageCount} pesan</span>
-                            </div>
-                        </div>
-                    </a>
-                    <button class="delete-session-btn" title="Hapus Sesi">🗑️</button>
-                `;
+        <a href="index.html?session_id=${session.id}" class="card-link-wrapper">
+            <div class="card-image-container">
+                ${avatarElement}
+            </div>
+            <div class="card-content">
+                <h3 class="card-title">${characterName}</h3>
+                <p class="card-summary">${summaryText}</p>
+                <div class="card-footer">
+                    <span class="card-timestamp">${timeAgo}</span>
+                    <span class="card-message-count">${messageCount} pesan</span>
+                </div>
+            </div>
+        </a>
+        <button class="delete-session-btn" title="Hapus Sesi">🗑️</button>
+    `;
                 container.appendChild(sessionCard);
             }
 
