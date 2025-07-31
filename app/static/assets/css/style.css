@@ -1279,6 +1279,30 @@ body {
         line-height: 1.5;
     }
 
+    .customization-content {
+        padding: 1rem;
+        /* Bikin paddingnya lebih ringkes di hape */
+    }
+
+    .customization-modal .color-picker-wrapper {
+        flex-direction: column;
+        /* Paksa color picker & input HEX tersusun ke bawah */
+        align-items: center;
+        /* Biar rapi di tengah */
+    }
+
+    .customization-modal .slider-item {
+        flex-wrap: wrap;
+        /* Izinkan slider & labelnya turun ke baris baru kalo ga muat */
+        justify-content: center;
+        /* Biar slidernya ke tengah pas turun baris */
+    }
+
+    #background-dropzone p {
+        font-size: 0.9rem;
+        /* Kecilin dikit tulisan di dropzone */
+    }
+
     .chat-header {
         padding: 10px 15px;
         /* Sedikit lebih ringkas */

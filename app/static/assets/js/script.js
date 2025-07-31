@@ -478,7 +478,12 @@ function enterEditMode(messageBubble) {
     autoResizeTextarea();
     textarea.addEventListener('input', autoResizeTextarea); // Panggil sekali untuk inisialisasi
     textarea.focus(); // Langsung fokus ke textarea
-
+    setTimeout(() => {
+        messageBubble.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+    }, 100);
     // --- Logika Tombol Batal ---
     editArea.querySelector('.cancel-button').addEventListener('click', () => {
         // Hapus area edit
