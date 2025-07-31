@@ -1328,6 +1328,19 @@ body {
         /* Perkecil avatar */
         height: 40px;
     }
+
+    .message.is-editing {
+        position: relative;
+        /* Wajib ada biar z-index berfungsi */
+        z-index: 100;
+        /* Angka tinggi biar dia di paling depan */
+        background-color: #3b3f46;
+        /* Sedikit bedain warna background biar keliatan */
+        border-radius: 8px;
+        /* Biar sudutnya gak lancip */
+        padding-bottom: 10px;
+        /* Kasih sedikit ruang di bawahnya */
+    }
 }
 
 

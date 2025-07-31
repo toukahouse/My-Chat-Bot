@@ -449,7 +449,7 @@ function fileToBase64(file) {
 function enterEditMode(messageBubble) {
     const messageTextDiv = messageBubble.querySelector('.message-text');
     if (messageBubble.querySelector('.edit-area')) return;
-
+    messageBubble.classList.add('is-editing');
     const currentTextElement = messageTextDiv.querySelector('p');
     if (!currentTextElement) return;
 
@@ -470,33 +470,37 @@ function enterEditMode(messageBubble) {
 
     const textarea = editArea.querySelector('textarea');
 
-    // ▼▼▼ TAMBAHKAN BLOK KODE INI ▼▼▼
     function autoResizeTextarea() {
-        textarea.style.height = 'auto'; // Kempeskan dulu
-        textarea.style.height = textarea.scrollHeight + 'px'; // Set tinggi sesuai konten
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
     }
     autoResizeTextarea();
-    textarea.addEventListener('input', autoResizeTextarea); // Panggil sekali untuk inisialisasi
-    textarea.focus(); // Langsung fokus ke textarea
+    textarea.addEventListener('input', autoResizeTextarea);
+
+    // --- LOGIKA FOKUS & SCROLL "IKUTI KLIK" ---
+
+    // Fungsi untuk melakukan scroll cerdas
+    const smartScroll = () => {
+        setTimeout(() => {
+            // Kita tetap pakai 'center' karena ini yang paling stabil
+            // untuk memastikan area editnya ada di tengah viewport.
+            textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150); // jeda sedikit untuk nunggu layout stabil
+    };
+
+    // 1. Saat textarea ini pertama kali di-FOKUS (baik via `focus()` atau diklik user):
+    textarea.addEventListener('focus', () => {
+        // Langsung panggil fungsi scroll cerdas kita.
+        smartScroll();
+    }, { once: true }); // `{ once: true }` artinya listener ini cuma jalan SEKALI AJA.
+    // Ini penting biar gak scroll terus-terusan setiap kali kamu klik ulang.
+
+    // 2. Kita tetap panggil focus() di awal untuk memunculkan keyboard di mobile.
     textarea.focus({ preventScroll: true });
-
-    // Paksa scroll setelah jeda singkat, untuk melawan scroll otomatis browser
-    setTimeout(() => {
-        // scrollIntoView() biasa kadang nggak cukup di mobile
-        // Kita coba cara yang lebih manual
-        const textareaRect = textarea.getBoundingClientRect();
-        const absoluteTop = window.scrollY + textareaRect.top;
-        const middleOfScreen = window.innerHeight / 3; // Sedikit lebih ke atas dari tengah
-
-        window.scrollTo({
-            top: absoluteTop - middleOfScreen,
-            behavior: 'smooth'
-        });
-    }, 200);
     // --- Logika Tombol Batal ---
     editArea.querySelector('.cancel-button').addEventListener('click', () => {
         // Hapus area edit
-        messageBubble.classList.remove('is-editing');
+        messageBubble.classList.remove('is-editing'); // <-- Jangan lupa hapus class-nya!
         editArea.remove();
         // Tampilkan lagi teks aslinya
         currentTextElement.style.display = 'block';
