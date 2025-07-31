@@ -12,76 +12,81 @@
 </head>
 
 <body>
-
-    <div class="chat-container">
-        <div id="model-notification" class="model-active-notification"></div>
-        <header class="chat-header">
-            <a href="/" class="home-button">NovaAI</a>
-            <div class="character-info">
-                <h2>Hana</h2>
-            </div>
-            <div class="header-menu">
-                <button class="new-chat-button" title="Mulai Chat Baru">+</button>
-                <button class="menu-button">☰</button>
-                <div class="dropdown-menu hidden">
-                    <a href="sessions.html">Muat Sesi Chat</a>
-                    <a href="character-editor.html">Edit Karakter</a>
-                    <a href="#" id="select-persona-link">Pilih Persona Aktif</a>
-                    <a href="memory-editor.html">Edit Memori AI</a>
-                    <a href="world-editor.html">Edit Info Dunia</a>
-                    <a href="#" id="edit-summary-link">Edit Ringkasan Chat</a>
-                    <a href="npc-editor.html">Edit Karakter Sampingan (NPC)</a>
-                    <a href="api-settings.html">API Settings</a>
+    <div class="main-wrapper">
+        <!-- Elemen BARU khusus untuk background -->
+        <div id="chat-background-layer" class="chat-background-layer"></div>
+        <div class="chat-container">
+            <div id="model-notification" class="model-active-notification"></div>
+            <header class="chat-header">
+                <a href="/" class="home-button">NovaAI</a>
+                <div class="character-info">
+                    <h2>Hana</h2>
                 </div>
-            </div>
-        </header>
+                <div class="header-menu">
+                    <button class="new-chat-button" title="Mulai Chat Baru">+</button>
+                    <button class="menu-button">☰</button>
+                    <div class="dropdown-menu hidden">
+                        <a href="sessions.html">Muat Sesi Chat</a>
+                        <a href="character-editor.html">Edit Karakter</a>
+                        <a href="#" id="select-persona-link">Pilih Persona Aktif</a>
+                        <a href="memory-editor.html">Edit Memori AI</a>
+                        <a href="world-editor.html">Edit Info Dunia</a>
+                        <a href="#" id="edit-summary-link">Edit Ringkasan Chat</a>
+                        <a href="npc-editor.html">Edit Karakter Sampingan (NPC)</a>
+                        <a href="api-settings.html">API Settings</a>
+                        <a href="#" id="customize-chat-link">Kustomisasi Tampilan</a>
+                    </div>
+                </div>
+            </header>
 
-        <main class="chat-messages">
-        </main>
+            <main class="chat-messages">
+            </main>
 
-        <footer class="chat-input-area">
-            <!-- ▼▼▼ AREA PREVIEW GAMBAR (BARU) ▼▼▼ -->
-            <div id="image-preview-container" class="hidden">
-                <img id="image-preview" src="#" alt="Pratinjau Gambar" />
-                <button id="remove-image-button" title="Hapus Gambar">×</button>
-            </div>
-            <!-- ▲▲▲ SELESAI ▲▲▲ -->
+            <footer class="chat-input-area">
+                <!-- ▼▼▼ AREA PREVIEW GAMBAR (BARU) ▼▼▼ -->
+                <div id="image-preview-container" class="hidden">
+                    <img id="image-preview" src="#" alt="Pratinjau Gambar" />
+                    <button id="remove-image-button" title="Hapus Gambar">×</button>
+                </div>
+                <!-- ▲▲▲ SELESAI ▲▲▲ -->
 
-            <!-- ▼▼▼ WADAH INPUT BARU YANG LEBIH KEREN ▼▼▼ -->
-            <div class="input-wrapper">
-                <!-- ▼▼▼ WADAH BARU UNTUK TEXTAREA DAN TOMBOL + ▼▼▼ -->
-                <div class="textarea-container">
-                    <textarea placeholder="Ketik pesanmu di sini..."></textarea>
-                    <input type="file" id="image-upload-input" accept="image/*" hidden>
-                    <button id="upload-button" class="upload-button" title="Unggah Gambar">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-                            fill="currentColor">
-                            <path
-                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" />
-                        </svg>
+                <!-- ▼▼▼ WADAH INPUT BARU YANG LEBIH KEREN ▼▼▼ -->
+                <div class="input-wrapper">
+                    <!-- ▼▼▼ WADAH BARU UNTUK TEXTAREA DAN TOMBOL + ▼▼▼ -->
+                    <div class="textarea-container">
+                        <textarea placeholder="Ketik pesanmu di sini..."></textarea>
+                        <input type="file" id="image-upload-input" accept="image/*" hidden>
+                        <button id="upload-button" class="upload-button" title="Unggah Gambar">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="currentColor">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <!-- ▲▲▲ SELESAI WADAH BARU ▲▲▲ -->
+
+                    <button class="send-button" title="Kirim">
+                        <!-- ... ikon send & stop ... -->
+                        <span class="icon icon-send">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" />
+                            </svg>
+                        </span>
+                        <span class="icon icon-stop">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <rect width="18" height="18" x="3" y="3" rx="2" />
+                            </svg>
+                        </span>
                     </button>
                 </div>
-                <!-- ▲▲▲ SELESAI WADAH BARU ▲▲▲ -->
-
-                <button class="send-button" title="Kirim">
-                    <!-- ... ikon send & stop ... -->
-                    <span class="icon icon-send">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" />
-                        </svg>
-                    </span>
-                    <span class="icon icon-stop">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                            fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round">
-                            <rect width="18" height="18" x="3" y="3" rx="2" />
-                        </svg>
-                    </span>
-                </button>
-            </div>
-            <!-- ▲▲▲ SELESAI ▲▲▲ -->
-        </footer>
+                <!-- ▲▲▲ SELESAI ▲▲▲ -->
+            </footer>
+        </div>
     </div>
     <div id="persona-modal-overlay" class="modal-overlay hidden">
         <div class="persona-modal">
@@ -96,6 +101,75 @@
             </div>
         </div>
     </div>
+    <div id="customization-modal-overlay" class="modal-overlay hidden">
+        <div id="customization-modal" class="customization-modal">
+            <header class="customization-header">
+                <h3>Kustomisasi Tampilan Chat</h3>
+                <button id="close-customization-modal" class="close-btn">×</button>
+            </header>
+
+            <main class="customization-content">
+                <!-- Bagian Background -->
+                <div class="modal-section">
+                    <h4>Latar Belakang (Background)</h4>
+                    <div class="setting-item">
+                        <label>Ubah Warna Background</label>
+                        <div class="color-picker-wrapper">
+                            <div id="bg-color-picker"></div>
+                            <input type="text" id="bg-color-hex" class="color-hex-input" readonly>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label for="background-image-upload">Upload Gambar Background</label>
+                        <div id="background-dropzone" class="dropzone">
+                            <p>Seret & lepas gambar ke sini, atau klik untuk pilih file.</p>
+                            <small>Mendukung: JPG, PNG, GIF, WebP</small>
+                        </div>
+                        <div class="setting-item slider-item">
+                            <label for="background-opacity-slider">Transparansi Background</label>
+                            <input type="range" id="background-opacity-slider" min="0" max="1" value="1" step="0.01">
+                            <span id="background-opacity-value">100%</span>
+                        </div>
+                        <input type="file" id="background-image-upload" accept="image/*" hidden>
+                        <div id="background-preview-container" class="hidden">
+                            <img id="background-preview" src="#" alt="Preview BG">
+                            <button id="remove-background-image">Hapus Gambar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bagian Pengaturan Teks -->
+                <div class="modal-section">
+                    <h4>Pengaturan Teks</h4>
+                    <div class="setting-item">
+                        <label>Ubah Warna Font</label>
+                        <div class="color-picker-wrapper">
+                            <div id="font-color-picker"></div>
+                            <input type="text" id="font-color-hex" class="color-hex-input" readonly>
+                        </div>
+                    </div>
+                    <div class="setting-item slider-item">
+                        <label for="font-size-slider">Ukuran Font</label>
+                        <input type="range" id="font-size-slider" min="12" max="24" value="16" step="1">
+                        <span id="font-size-value">16px</span>
+                    </div>
+                    <div class="setting-item">
+                        <label for="font-file-upload">Upload Font Custom (.ttf)</label>
+                        <button id="upload-font-button" class="upload-btn">Pilih File Font</button>
+                        <input type="file" id="font-file-upload" accept=".ttf" hidden>
+                        <span id="current-font-name">Font: Standar</span>
+                    </div>
+                </div>
+                <!-- Bagian Reset -->
+                <div class.modal-section>
+                    <button id="reset-customization-btn" class="reset-btn">Reset ke Pengaturan Awal</button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Library untuk Color Picker yang Keren -->
+    <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
     <script src="{{ url_for('static', filename='assets/js/script.js') }}" defer></script>
 </body>
 

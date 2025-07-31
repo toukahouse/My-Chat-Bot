@@ -21,22 +21,56 @@ body {
     /* Tinggi penuh layar */
 }
 
-/* --- Wadah Utama Chat --- */
-/* GANTI TOTAL ATURAN INI */
-.chat-container {
+.main-wrapper {
+    position: relative;
+    /* Penting agar background layer bisa diposisikan */
     width: 100%;
     max-width: 800px;
     height: 95vh;
     max-height: 900px;
-    background-color: #2f3136;
     border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    /* Pastikan background gak bocor keluar */
+    display: flex;
+    /* Biar chat-container di dalamnya bisa full height */
+}
 
-    /* INI TIGA BARIS KUNCINYA */
+/* Layer Khusus Background */
+.chat-background-layer {
+    position: absolute;
+    /* Tempel di belakang */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    /* Posisikan di paling belakang */
+    background-size: cover;
+    background-position: center;
+    transition: opacity 0.3s ease;
+    background-color: #2f3136;
+    /* Transisi untuk opacity */
+}
+
+/* Modifikasi untuk Chat Container */
+.chat-container {
+    /* Hapus properti ukuran, karena sudah dihandle oleh wrapper */
+    width: 100%;
+    height: 100%;
+    /* JADIKAN TRANSPARAN, biar background layer keliatan */
+    background-color: transparent;
+    /* Hapus shadow dari sini karena sudah pindah ke wrapper */
+    box-shadow: none;
+
+    /* Posisi di atas background layer */
+    position: relative;
+    z-index: 2;
+
+    /* Sisa style lama (flex, flex-direction) biarkan saja */
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* Pastikan ini ada untuk memotong konten yang keluar */
+    /* Hapus ini, karena overflow-y sudah ada di chat-messages */
 }
 
 /* --- Header --- */
@@ -197,10 +231,13 @@ body {
 
 .message-text p {
     margin: 0;
-    color: #e3e4e5;
+    color: var(--dynamic-font-color, #e3e4e5);
     white-space: pre-wrap;
-    /* <-- TAMBAHKAN BARIS AJAIB INI */
-    /* Warna teks dialog normal (putih) */
+    /* ▼▼▼ TAMBAHKAN 2 BARIS INI ▼▼▼ */
+    font-size: var(--dynamic-font-size, 1rem);
+    /* 1rem itu sekitar 16px */
+    font-family: var(--dynamic-font-family, 'Inter', sans-serif);
+    /* ▲▲▲ SELESAI ▲▲▲ */
 }
 
 /* Ini untuk style *aksi* atau *tindakan* */
@@ -239,9 +276,10 @@ body {
 /* PASTIKAN ATURAN INI BENAR */
 .chat-input-area {
     padding: 10px 15px;
-    border-top: 1px solid #2b2d31;
-    background-color: #2f3136;
-    /* Kita HAPUS display:flex dari sini, karena sudah ada di .input-wrapper */
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    /* Garis pemisah lebih samar lagi */
+    background-color: rgba(47, 49, 54, 0.35);
+    /* <-- Coba di 35% transparansi */
 }
 
 .chat-input-area textarea {
@@ -272,13 +310,6 @@ body {
     /* Transisi halus saat ganti tinggi */
 }
 
-/* ▼▼▼ TAMBAHKAN BLOK BARU INI ▼▼▼ */
-/* Wadah yang menyatukan tombol + dan textarea */
-/* --- GANTI SEMUA BLOK CSS LAMA DENGAN INI --- */
-
-/* Wadah yang menyatukan semua: tombol +, textarea, tombol kirim */
-/* --- AREA INPUT VERSI FINAL (ANTI GAGAL) --- */
-
 .input-wrapper {
     display: flex;
     align-items: flex-end;
@@ -286,17 +317,18 @@ body {
     width: 100%;
 }
 
-/* Wadah baru yang membungkus tombol + dan textarea */
 .textarea-container {
     flex-grow: 1;
     display: flex;
     align-items: center;
-    background-color: #40444b;
-    border: 1px solid #40444b;
-    /* <-- INI BORDER AWALNYA */
+    background-color: rgba(64, 68, 75, 0.5);
+    /* <-- Coba di 50% transparansi */
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    /* Border lebih samar lagi */
     border-radius: 20px;
     padding: 0 8px;
-    transition: border-color 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    color: white;
 }
 
 .textarea-container:focus-within {
@@ -685,7 +717,7 @@ body {
     border-radius: 5px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     padding: 8px;
-    z-index: 10;
+    z-index: 100;
     width: 180px;
     display: flex;
     flex-direction: column;
@@ -2249,4 +2281,245 @@ a.card-link-wrapper {
     border-radius: 50%;
     object-fit: cover;
     margin-right: 12px;
+}
+
+:root {
+    --modal-bg: #2f3136;
+    --modal-content-bg: #36393f;
+    --modal-border: #40444b;
+    --text-primary: #dcddde;
+    --text-secondary: #b9bbbe;
+    --accent-primary: #7289da;
+    --accent-secondary: #43b581;
+    --danger-color: #f04747;
+}
+
+.customization-modal {
+    background-color: var(--modal-bg);
+    border-radius: 8px;
+    width: 90%;
+    max-width: 550px;
+    /* Sedikit lebih lebar */
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--modal-border);
+    animation: fadeInModal 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes fadeInModal {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+
+.customization-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--modal-border);
+}
+
+.customization-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+.customization-header .close-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.8rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.25rem;
+    transition: color 0.2s;
+}
+
+.customization-header .close-btn:hover {
+    color: var(--text-primary);
+}
+
+
+.customization-content {
+    padding: 1.5rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.modal-section {
+    background-color: var(--modal-content-bg);
+    padding: 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--modal-border);
+}
+
+.modal-section h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    border-bottom: 1px solid var(--modal-border);
+    padding-bottom: 0.5rem;
+}
+
+.setting-item {
+    margin-bottom: 1rem;
+}
+
+.setting-item:last-child {
+    margin-bottom: 0;
+}
+
+.setting-item label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+}
+
+/* --- Color Picker --- */
+.color-picker-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.color-hex-input {
+    background-color: var(--modal-bg);
+    border: 1px solid var(--modal-border);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 8px;
+    font-family: monospace;
+    text-align: center;
+    width: 100px;
+}
+
+/* --- Dropzone --- */
+#background-dropzone {
+    border: 2px dashed var(--modal-border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+#background-dropzone.dragover {
+    background-color: rgba(114, 137, 218, 0.1);
+    border-color: var(--accent-primary);
+}
+
+#background-dropzone p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+#background-dropzone small {
+    color: #8e9297;
+}
+
+/* --- Background Preview --- */
+#background-preview-container {
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+#background-preview {
+    width: 100px;
+    height: 56px;
+    /* 16:9 ratio */
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--modal-border);
+}
+
+#remove-background-image {
+    background-color: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background-color 0.2s;
+}
+
+#remove-background-image:hover {
+    background-color: #d83c3e;
+}
+
+/* --- Slider --- */
+.slider-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+#font-size-slider {
+    flex-grow: 1;
+}
+
+#font-size-value {
+    background-color: var(--modal-bg);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    min-width: 50px;
+    text-align: center;
+    border: 1px solid var(--modal-border);
+}
+
+
+/* --- Tombol Upload & Reset --- */
+.upload-btn,
+.reset-btn {
+    width: 100%;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.upload-btn {
+    background-color: var(--accent-primary);
+    color: white;
+}
+
+.upload-btn:hover {
+    background-color: #677bc4;
+}
+
+.reset-btn {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.reset-btn:hover {
+    background-color: #d83c3e;
+}
+
+#current-font-name {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-style: italic;
 }

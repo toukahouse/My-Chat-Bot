@@ -18,6 +18,33 @@ const personaModalOverlay = document.getElementById('persona-modal-overlay');
 const personaSelectionList = document.getElementById('persona-selection-list');
 const cancelPersonaBtn = document.getElementById('cancel-persona-btn');
 const applyPersonaBtn = document.getElementById('apply-persona-btn');
+const customizeChatLink = document.getElementById('customize-chat-link');
+const customizationModalOverlay = document.getElementById('customization-modal-overlay');
+const closeCustomizationModalBtn = document.getElementById('close-customization-modal');
+const chatBackgroundLayer = document.getElementById('chat-background-layer');
+
+// Elemen Kustomisasi Background
+const bgColorPickerElement = document.getElementById('bg-color-picker');
+const bgColorHexInput = document.getElementById('bg-color-hex');
+const backgroundDropzone = document.getElementById('background-dropzone');
+const backgroundImageUpload = document.getElementById('background-image-upload');
+const backgroundPreviewContainer = document.getElementById('background-preview-container');
+const backgroundPreview = document.getElementById('background-preview');
+const removeBackgroundImageBtn = document.getElementById('remove-background-image');
+
+// Elemen Kustomisasi Font
+const fontColorPickerElement = document.getElementById('font-color-picker');
+const fontColorHexInput = document.getElementById('font-color-hex');
+const fontSizeSlider = document.getElementById('font-size-slider');
+const fontSizeValue = document.getElementById('font-size-value');
+const uploadFontButton = document.getElementById('upload-font-button');
+const fontFileInput = document.getElementById('font-file-upload');
+const currentFontNameSpan = document.getElementById('current-font-name');
+
+// Tombol Reset
+const resetCustomizationBtn = document.getElementById('reset-customization-btn');
+const backgroundOpacitySlider = document.getElementById('background-opacity-slider');
+const backgroundOpacityValue = document.getElementById('background-opacity-value');
 
 let chatHistory = [];
 let abortController = new AbortController();
@@ -1308,6 +1335,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Kalau nggak ada session_id, sembunyiin aja link-nya
         editSummaryLink.style.display = 'none';
     }
+    initializeCustomizationControls();
+    // Muat pengaturan kustomisasi yang tersimpan dari localStorage
+    loadCustomizations();
 
     const inputField = document.querySelector('.chat-input-area textarea');
     if (inputField) {
@@ -1721,3 +1751,330 @@ if (selectPersonaLink) selectPersonaLink.addEventListener('click', (e) => {
 });
 if (cancelPersonaBtn) cancelPersonaBtn.addEventListener('click', closePersonaModal);
 if (applyPersonaBtn) applyPersonaBtn.addEventListener('click', applyPersonaSelection);
+
+let bgColorPicker;
+let fontColorPicker;
+
+// --- Fungsi untuk membuka & menutup modal ---
+function openCustomizationModal() {
+    if (!customizationModalOverlay) return;
+    customizationModalOverlay.classList.remove('hidden');
+    // Inisialisasi color picker HANYA saat modal dibuka pertama kali
+    if (!bgColorPicker) {
+        initializeColorPickers();
+    }
+}
+
+function closeCustomizationModal() {
+    if (!customizationModalOverlay) return;
+    customizationModalOverlay.classList.add('hidden');
+}
+
+// --- Fungsi untuk inisialisasi semua kontrol di dalam modal ---
+function initializeCustomizationControls() {
+    if (!customizeChatLink) return; // Kalau bukan di halaman chat, stop.
+
+    // Buka/Tutup Modal
+    customizeChatLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        dropdownMenu.classList.add('hidden'); // Tutup dulu menu dropdown utamanya
+        openCustomizationModal();
+    });
+    closeCustomizationModalBtn.addEventListener('click', closeCustomizationModal);
+    customizationModalOverlay.addEventListener('click', (e) => {
+        // Hanya tutup jika klik di area overlay gelap, bukan di modalnya
+        if (e.target === customizationModalOverlay) {
+            closeCustomizationModal();
+        }
+    });
+
+    // 1. Fungsi inti untuk memproses file gambar
+    function handleBackgroundImage(file) {
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                const imageUrl = e.target.result;
+
+                // Terapkan sebagai background
+                chatBackgroundLayer.style.backgroundImage = `url('${imageUrl}')`;
+                chatBackgroundLayer.style.backgroundColor = ''; // Kosongkan warna solid
+
+                // Tampilkan di preview
+                backgroundPreview.src = imageUrl;
+                backgroundPreviewContainer.classList.remove('hidden');
+                backgroundDropzone.classList.add('hidden');
+                saveCustomizations();
+            }
+
+            reader.readAsDataURL(file);
+        } else {
+            alert("File tidak valid. Harap pilih file gambar (JPG, PNG, GIF).");
+        }
+    }
+
+    // 2. Klik dropzone untuk membuka file picker
+    backgroundDropzone.addEventListener('click', () => {
+        backgroundImageUpload.click();
+    });
+
+    // 3. Listener jika file dipilih lewat file picker
+    backgroundImageUpload.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleBackgroundImage(e.target.files[0]);
+        }
+    });
+
+    // 4. Drag & Drop listeners
+    backgroundDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault(); // Wajib untuk mengizinkan drop
+        backgroundDropzone.classList.add('dragover');
+    });
+
+    backgroundDropzone.addEventListener('dragleave', () => {
+        backgroundDropzone.classList.remove('dragover');
+    });
+
+    backgroundDropzone.addEventListener('drop', (e) => {
+        e.preventDefault(); // Wajib untuk mencegah browser membuka file
+        backgroundDropzone.classList.remove('dragover');
+
+        if (e.dataTransfer.files.length > 0) {
+            handleBackgroundImage(e.dataTransfer.files[0]);
+        }
+    });
+
+    // 5. Tombol untuk menghapus gambar background
+    removeBackgroundImageBtn.addEventListener('click', () => {
+        chatBackgroundLayer.style.backgroundImage = 'none';
+        chatBackgroundLayer.style.backgroundColor = bgColorPicker.color.hexString;
+
+        // Reset tampilan di modal
+        backgroundPreviewContainer.classList.add('hidden');
+        backgroundDropzone.classList.remove('hidden');
+
+        // Reset input file biar bisa upload gambar yg sama lagi
+        backgroundImageUpload.value = '';
+        saveCustomizations();
+    });
+
+    fontSizeSlider.addEventListener('input', (e) => {
+        const newSize = e.target.value;
+        fontSizeValue.textContent = `${newSize}px`;
+        // Terapkan ukuran font ke elemen chat messages pakai CSS Variable
+        document.documentElement.style.setProperty('--dynamic-font-size', `${newSize}px`);
+        saveCustomizations();
+    });
+
+    // 2. Tombol Upload Font
+    uploadFontButton.addEventListener('click', () => {
+        fontFileInput.click();
+    });
+
+    // 3. Listener jika file font dipilih
+    fontFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file && file.name.endsWith('.ttf')) {
+            handleFontFile(file);
+        } else if (file) {
+            alert("Harap pilih file font dengan format .ttf");
+        }
+    });
+    backgroundOpacitySlider.addEventListener('input', (e) => {
+        const newOpacity = e.target.value;
+        // Tampilkan dalam format persen yang lebih enak dibaca
+        backgroundOpacityValue.textContent = `${Math.round(newOpacity * 100)}%`;
+        // Terapkan opacity ke chat container
+        chatBackgroundLayer.style.opacity = newOpacity;
+        saveCustomizations(); // Jangan lupa simpan
+    });
+    // ▼▼▼ TAMBAHKAN BLOK INI DI BAGIAN AKHIR FUNGSI ▼▼▼
+    // Listener untuk Tombol Reset
+    resetCustomizationBtn.addEventListener('click', () => {
+        if (confirm("Yakin mau reset semua pengaturan tampilan ke default?")) {
+            // Hapus data dari localStorage
+            localStorage.removeItem('chatCustomizations');
+            // Muat ulang halaman untuk menerapkan style default dari CSS
+            location.reload();
+        }
+    });
+
+    // 4. Fungsi untuk memproses file font
+    function handleFontFile(file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const fontDataUrl = e.target.result;
+            const fontName = 'CustomUserFont'; // Kita kasih nama tetap biar gampang
+
+            // Buat tag <style> baru di dalam <head> untuk mendefinisikan @font-face
+            const newStyle = document.createElement('style');
+            newStyle.id = 'custom-font-style'; // Kasih ID biar bisa dihapus/diganti
+            newStyle.textContent = `
+                @font-face {
+                    font-family: '${fontName}';
+                    src: url('${fontDataUrl}');
+                }
+            `;
+
+            // Hapus style lama jika ada, lalu tambahkan yang baru
+            const oldStyle = document.getElementById('custom-font-style');
+            if (oldStyle) {
+                oldStyle.remove();
+            }
+            document.head.appendChild(newStyle);
+
+            // Terapkan font baru ini ke chat messages
+            document.documentElement.style.setProperty('--dynamic-font-family', `'${fontName}', 'Inter', sans-serif`);
+
+            // Update nama font di tampilan modal
+            currentFontNameSpan.textContent = `Font: ${file.name}`;
+            saveCustomizations();
+        };
+        reader.readAsDataURL(file);
+    }
+
+}
+
+function initializeColorPickers() {
+    // Inisialisasi Background Color Picker
+    bgColorPicker = new iro.ColorPicker(bgColorPickerElement, {
+        width: 180,
+        color: "#2f3136", // Warna awal default
+        borderWidth: 1,
+        borderColor: "#fff",
+    });
+
+    // Inisialisasi Font Color Picker
+    fontColorPicker = new iro.ColorPicker(fontColorPickerElement, {
+        width: 180,
+        color: "#e3e4e5", // Warna awal default
+        borderWidth: 1,
+        borderColor: "#fff",
+    });
+
+    bgColorPicker.on('color:change', function (color) {
+        const newColor = color.hexString;
+        bgColorHexInput.value = newColor;
+
+        // ▼▼▼ LOGIKA BARU DI SINI ▼▼▼
+        // HANYA ubah warna background JIKA TIDAK ADA gambar yang aktif.
+        if (!chatBackgroundLayer.style.backgroundImage || chatBackgroundLayer.style.backgroundImage === 'none') {
+            chatBackgroundLayer.style.backgroundColor = newColor;
+        }
+        // Jika ada gambar aktif, kita kasih tau user untuk hapus gambar dulu.
+        else {
+            // Kita bisa kasih notif kecil atau biarin aja,
+            // tapi untuk sekarang, kita cegah perubahan warna.
+            console.log("Hapus gambar background dulu untuk mengubah warna solid.");
+        }
+        // ▲▲▲ SELESAI ▲▲▲
+
+        saveCustomizations();
+    });
+
+    // Listener untuk Font Color
+    fontColorPicker.on('color:change', function (color) {
+        const newColor = color.hexString;
+        fontColorHexInput.value = newColor;
+        // Terapkan warna font ke elemen chat messages
+        // Kita pakai CSS Variable biar lebih canggih & mudah di-manage
+        document.documentElement.style.setProperty('--dynamic-font-color', newColor);
+        saveCustomizations();
+    });
+}
+
+
+
+function saveCustomizations() {
+    // 1. Ambil semua nilai dari kontrol UI
+    const settings = {
+        backgroundColor: chatBackgroundLayer.style.backgroundColor,
+        backgroundOpacity: chatBackgroundLayer.style.opacity || '1',
+        backgroundImage: chatBackgroundLayer.style.backgroundImage.includes('url')
+            ? chatBackgroundLayer.style.backgroundImage
+            : null,
+        backgroundOpacity: backgroundOpacitySlider.value,
+        // Cek apakah ada font custom yang sedang aktif
+        fontDataUrl: document.getElementById('custom-font-style')?.textContent || null,
+        fontFileName: currentFontNameSpan.textContent
+    };
+
+    // 2. Simpan sebagai satu string JSON di localStorage
+    localStorage.setItem('chatCustomizations', JSON.stringify(settings));
+    console.log("🎨 Pengaturan tampilan disimpan!", settings);
+}
+
+// --- Fungsi untuk MENERAPKAN pengaturan dari objek ---
+function applyCustomizations(settings) {
+    if (!settings) return;
+
+    // Terapkan Background
+    if (settings.backgroundImage) {
+        // ▼▼▼ PASTIKAN TARGETNYA BENAR ▼▼▼
+        chatBackgroundLayer.style.backgroundImage = settings.backgroundImage;
+        chatBackgroundLayer.style.backgroundSize = 'cover';
+        chatBackgroundLayer.style.backgroundPosition = 'center';
+        // ▲▲▲ SELESAI ▲▲▲
+        backgroundPreview.src = settings.backgroundImage.replace('url("', '').replace('")', '');
+        backgroundPreviewContainer.classList.remove('hidden');
+        backgroundDropzone.classList.add('hidden');
+    } else if (settings.backgroundColor) {
+        // ▼▼▼ PASTIKAN TARGETNYA BENAR ▼▼▼
+        chatBackgroundLayer.style.backgroundColor = settings.backgroundColor;
+        // ▲▲▲ SELESAI ▲▲▲
+        if (bgColorPicker) { // Cek dulu picker-nya ada atau tidak
+            bgColorPicker.color.set(settings.backgroundColor);
+            bgColorHexInput.value = settings.backgroundColor;
+        }
+    }
+
+    // Terapkan Font Color
+    if (settings.fontColor) {
+        document.documentElement.style.setProperty('--dynamic-font-color', settings.fontColor);
+        fontColorPicker.color.set(settings.fontColor);
+        fontColorHexInput.value = settings.fontColor;
+    }
+
+    // Terapkan Font Size
+    if (settings.fontSize) {
+        document.documentElement.style.setProperty('--dynamic-font-size', `${settings.fontSize}px`);
+        fontSizeSlider.value = settings.fontSize;
+        fontSizeValue.textContent = `${settings.fontSize}px`;
+    }
+
+    // Terapkan Custom Font
+    if (settings.fontDataUrl) {
+        const newStyle = document.createElement('style');
+        newStyle.id = 'custom-font-style';
+        newStyle.textContent = settings.fontDataUrl; // Langsung pakai data @font-face yang disimpan
+
+        const oldStyle = document.getElementById('custom-font-style');
+        if (oldStyle) oldStyle.remove();
+        document.head.appendChild(newStyle);
+
+        document.documentElement.style.setProperty('--dynamic-font-family', `'CustomUserFont', 'Inter', sans-serif`);
+        currentFontNameSpan.textContent = settings.fontFileName;
+    }
+    if (settings.backgroundOpacity) {
+        // ▼▼▼ PASTIKAN TARGETNYA BENAR ▼▼▼
+        chatBackgroundLayer.style.opacity = settings.backgroundOpacity;
+        // ▲▲▲ SELESAI ▲▲▲
+        backgroundOpacitySlider.value = settings.backgroundOpacity;
+        backgroundOpacityValue.textContent = `${Math.round(settings.backgroundOpacity * 100)}%`;
+    }
+}
+
+
+// --- Fungsi untuk MEMUAT pengaturan dari localStorage saat halaman dibuka ---
+function loadCustomizations() {
+    const savedSettingsJSON = localStorage.getItem('chatCustomizations');
+    if (savedSettingsJSON) {
+        const savedSettings = JSON.parse(savedSettingsJSON);
+        // Pastikan color picker sudah ada sebelum kita coba atur warnanya
+        if (!bgColorPicker) {
+            initializeColorPickers();
+        }
+        applyCustomizations(savedSettings);
+        console.log("🎨 Pengaturan tampilan yang tersimpan berhasil dimuat.");
+    }
+}
