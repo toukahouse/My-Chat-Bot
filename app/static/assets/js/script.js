@@ -478,12 +478,21 @@ function enterEditMode(messageBubble) {
     autoResizeTextarea();
     textarea.addEventListener('input', autoResizeTextarea); // Panggil sekali untuk inisialisasi
     textarea.focus(); // Langsung fokus ke textarea
+    textarea.focus({ preventScroll: true });
+
+    // Paksa scroll setelah jeda singkat, untuk melawan scroll otomatis browser
     setTimeout(() => {
-        messageBubble.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
+        // scrollIntoView() biasa kadang nggak cukup di mobile
+        // Kita coba cara yang lebih manual
+        const textareaRect = textarea.getBoundingClientRect();
+        const absoluteTop = window.scrollY + textareaRect.top;
+        const middleOfScreen = window.innerHeight / 3; // Sedikit lebih ke atas dari tengah
+
+        window.scrollTo({
+            top: absoluteTop - middleOfScreen,
+            behavior: 'smooth'
         });
-    }, 100);
+    }, 200);
     // --- Logika Tombol Batal ---
     editArea.querySelector('.cancel-button').addEventListener('click', () => {
         // Hapus area edit

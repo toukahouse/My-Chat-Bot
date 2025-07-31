@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Ambil data dari server saat halaman dimuat
     async function initializePage() {
         try {
-            const response = await fetch('/api/api-settings');
+            const response = await fetch(`/api/api-settings?t=${Date.now()}`);
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Gagal memuat pengaturan dari server.');
@@ -134,7 +134,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             showNotification(result.message, true);
-
+            const currentSettings = JSON.parse(localStorage.getItem('apiSettings') || '{}');
+            const newSettings = { ...currentSettings, ...formData };
+            localStorage.setItem('apiSettings', JSON.stringify(newSettings));
+            console.log('✅ localStorage berhasil disinkronkan dengan pengaturan baru.');
         } catch (error) {
             showNotification(`Gagal menyimpan: ${error.message}`, false);
         } finally {
