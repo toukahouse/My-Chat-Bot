@@ -2014,7 +2014,8 @@ function saveCustomizations() {
             ? chatBackgroundLayer.style.backgroundImage
             : null,
         backgroundOpacity: backgroundOpacitySlider.value,
-        // Cek apakah ada font custom yang sedang aktif
+        fontColor: fontColorHexInput.value, // Catat warna font
+        fontSize: fontSizeSlider.value,
         fontDataUrl: document.getElementById('custom-font-style')?.textContent || null,
         fontFileName: currentFontNameSpan.textContent
     };
