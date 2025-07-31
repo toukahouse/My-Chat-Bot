@@ -1188,6 +1188,22 @@ body {
 }
 
 @media (max-width: 600px) {
+    body {
+        display: block;
+        align-items: initial;
+        justify-content: initial;
+    }
+
+    /* Paksa wrapper utama untuk mengisi seluruh layar */
+    .main-wrapper {
+        height: 100vh;
+        /* Tinggi penuh layar */
+        max-height: 100vh;
+        /* Batas tinggi juga penuh */
+        border-radius: 0;
+        /* Hapus sudut melengkung */
+    }
+
     .dz-message-preview {
         /* Pastikan wadah preview tidak lebih lebar dari induknya */
         max-width: 100%;
@@ -1202,9 +1218,8 @@ body {
     }
 
     .chat-container {
-        height: 100vh;
         /* Gunakan 100vh di mobile biar full screen */
-        max-height: 100vh;
+        max-height: none;
         width: 100vw;
         border-radius: 0;
         box-shadow: none;
@@ -1258,10 +1273,10 @@ body {
     /* Di dalam blok @media (max-width: 600px) { ... } */
 
     .message-text p {
-        font-size: 0.75rem;
-        /* <-- UBAH ANGKA INI */
+        /* Gunakan variabel yang sama, tapi dengan nilai default yang lebih kecil untuk mobile */
+        font-size: var(--dynamic-font-size, 0.9rem);
+        /* <-- UBAH SEPERTI INI */
         line-height: 1.5;
-        /* <-- Tambahkan ini biar jarak antar barisnya pas */
     }
 
     .chat-header {

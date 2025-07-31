@@ -45,6 +45,8 @@ const currentFontNameSpan = document.getElementById('current-font-name');
 const resetCustomizationBtn = document.getElementById('reset-customization-btn');
 const backgroundOpacitySlider = document.getElementById('background-opacity-slider');
 const backgroundOpacityValue = document.getElementById('background-opacity-value');
+const MAX_IMAGE_SIZE_MB = 2;
+const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 
 let chatHistory = [];
 let abortController = new AbortController();
@@ -1022,18 +1024,22 @@ async function getAiResponse(userMessage, fileToSend = null) {
             userPayload = { name: activeUserPersona.name, persona: activeUserPersona.persona };
         }
         formData.append('user', JSON.stringify(userPayload));
-        formData.append('api_settings', apiSettingsString); // INI YANG UTAMA
+        // formData.append('api_settings', apiSettingsString); // INI YANG UTAMA
 
         // Bagian ini juga disederhanakan, server sudah punya defaultnya
-        const apiSettingsData = JSON.parse(apiSettingsString);
-        formData.append('model', apiSettingsData.model || 'models/gemini-2.5-flash');
-        if (apiSettingsData.apiKey) {
-            formData.append('api_key', apiSettingsData.apiKey);
-        }
+        // const apiSettingsData = JSON.parse(apiSettingsString);
+        // formData.append('model', apiSettingsData.model || 'models/gemini-2.5-flash');
+        // if (apiSettingsData.apiKey) {
+        //     formData.append('api_key', apiSettingsData.apiKey);
+        // }
 
         formData.append('summary', currentSummary);
         formData.append('conversation_id', currentConversationId);
-
+        if (activeImageInfo) {
+            formData.append('active_image_uri', activeImageInfo.uri);
+            formData.append('active_image_mime', activeImageInfo.mime);
+            console.log(`🖼️ Mengirim ulang info gambar aktif ke server: ${activeImageInfo.uri}`);
+        }
         if (fileToSend) {
             formData.append('image', fileToSend);
         }
@@ -1391,6 +1397,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (imageFile) {
             event.preventDefault();
+            if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+                showToastNotification(`Ukuran gambar tidak boleh lebih dari ${MAX_IMAGE_SIZE_MB}MB.`, 'error');
+                return; // Stop, jangan proses gambar ini!
+            }
             selectedFile = imageFile;
             try {
                 const base64 = await fileToBase64(imageFile); // Tambahkan await
@@ -1610,6 +1620,11 @@ document.addEventListener('DOMContentLoaded', () => {
     imageUploadInput.addEventListener('change', async (event) => { // Tambahkan async
         const file = event.target.files[0];
         if (file) {
+            if (file.size > MAX_IMAGE_SIZE_BYTES) {
+                showToastNotification(`Ukuran gambar tidak boleh lebih dari ${MAX_IMAGE_SIZE_MB}MB.`, 'error');
+                event.target.value = ''; // Ini penting buat ngereset inputnya
+                return; // Stop, jangan lanjutin proses!
+            }
             selectedFile = file;
             try {
                 const base64 = await fileToBase64(file); // Tambahkan await

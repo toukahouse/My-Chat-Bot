@@ -153,6 +153,7 @@ def stream_generator(
         generation_config_dict = {
             "temperature": api_settings.get("temperature", 0.9),
             "top_p": api_settings.get("topP", 0.95),
+            "max_output_tokens": api_settings.get("maxOutputTokens", 2048),
             # Di masa depan, kamu bisa tambahin top_k, dll di sini
         }
 
@@ -190,7 +191,8 @@ def stream_generator(
             temperature=generation_config_dict.get(
                 "temperature"
             ),  # <-- BONGKAR DI SINI
-            top_p=generation_config_dict.get("top_p"),  # <-- DAN DI SINI
+            top_p=generation_config_dict.get("top_p"),
+            max_output_tokens=generation_config_dict.get("max_output_tokens"),
             safety_settings=safety_settings_list,
             thinking_config=types.ThinkingConfig(include_thoughts=True),
         )
@@ -234,7 +236,8 @@ def stream_generator(
                         and part.thought
                         and getattr(part, "text", None)
                     ):
-                        data_to_send = {"type": "thought", "content": part.text}
+                        content_text = part.text.replace("\n", " ").replace("\r", "")
+                        data_to_send = {"type": "thought", "content": content_text}
                         yield f"data: {json.dumps(data_to_send)}\n\n"
                     elif getattr(part, "text", None):
                         data_to_send = {"type": "reply", "content": part.text}
@@ -491,10 +494,7 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
 
                 api_key_to_use = os.getenv("GEMINI_API_KEY")
                 client = genai.Client(api_key=api_key_to_use)
-                # ... (di dalam check_and_summarize_if_needed)
-
-                # 1. Siapkan safety settings seperti biasa
-                summarization_safety_settings = [
+                safety_settings_bebas = [
                     types.SafetySetting(
                         category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
                         threshold=types.HarmBlockThreshold.BLOCK_NONE,
@@ -513,18 +513,16 @@ def check_and_summarize_if_needed(conversation_id, conn, selected_model):
                     ),
                 ]
 
-                # 2. BUNGKUS SEMUANYA ke dalam satu objek GenerateContentConfig
                 summarization_config_object = types.GenerateContentConfig(
-                    temperature=1.0, safety_settings=summarization_safety_settings
+                    temperature=1.0, safety_settings=safety_settings_bebas
                 )
 
-                # 3. Panggil API dengan SATU parameter konfigurasi bernama 'config'
+                # 2. Panggil API dengan SATU argumen 'config'
                 response = client.models.generate_content(
                     model=selected_model,
                     contents=[summarization_prompt],
-                    config=summarization_config_object,  # <-- INI KUNCI UTAMANYA
+                    config=summarization_config_object,  # <--- DISAMAIN JUGA
                 )
-
                 # --- BLOK EKSTRAKSI TEKS YANG LEBIH AMAN ---
                 new_summary_chunk = None
                 try:
@@ -636,10 +634,29 @@ def chat():
         history = json.loads(request.form.get("history", "[]"))
         character_info = json.loads(request.form.get("character", "{}"))
         user_info = json.loads(request.form.get("user", "{}"))
-        selected_model = request.form.get("model", "models/gemini-2.5-flash")
-        custom_api_key = request.form.get("api_key", None)
-        api_settings = json.loads(request.form.get("api_settings", "{}"))
         conversation_id = request.form.get("conversation_id")
+
+        # --- AMBIL PENGATURAN API LANGSUNG DARI DATABASE ---
+        api_settings = {}
+        selected_model = "models/gemini-2.5-flash"  # Default model
+        custom_api_key = None
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT model, temperature, top_p, safety_settings, max_output_tokens, api_key FROM public.api_settings WHERE id = 1"
+            )
+            settings_data = cur.fetchone()
+            if settings_data:
+                api_settings = {
+                    "model": settings_data[0],
+                    "temperature": float(settings_data[1]),
+                    "topP": float(settings_data[2]),
+                    "safetySettings": settings_data[3],
+                    "maxOutputTokens": int(settings_data[4]),
+                }
+                selected_model = settings_data[0] or selected_model
+                custom_api_key = settings_data[5]  # Ambil API key dari DB
+
+        print(f"⚙️ Pengaturan API dimuat dari DB: {api_settings}")
 
         # ▼▼▼ INI BAGIAN BARU & PENTINGNYA ▼▼▼
         # Ambil ID karakter dari character_info yang dikirim frontend
@@ -1213,7 +1230,7 @@ def get_api_settings():
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT model, temperature, top_p, safety_settings FROM public.api_settings WHERE id = 1"
+                "SELECT model, temperature, top_p, safety_settings, max_output_tokens FROM public.api_settings WHERE id = 1"
             )
             settings_data = cur.fetchone()
 
@@ -1224,10 +1241,9 @@ def get_api_settings():
             settings = {
                 "model": settings_data[0],
                 "temperature": settings_data[1],
-                "topP": settings_data[
-                    2
-                ],  # Perhatikan, frontend pakai 'topP' (camelCase)
+                "topP": settings_data[2],
                 "safetySettings": settings_data[3],
+                "maxOutputTokens": settings_data[4],
             }
         return settings, 200
     except Exception as e:
@@ -1249,6 +1265,7 @@ def update_api_settings():
         temperature = data.get("temperature")
         top_p = data.get("topP")
         safety_settings = data.get("safetySettings")
+        max_output_tokens = data.get("maxOutputTokens")  # <-- AMBIL DATA BARU
         # Ambil juga api_key jika user memasukkannya
         new_api_key = data.get("apiKey")
 
@@ -1262,10 +1279,17 @@ def update_api_settings():
                 cur.execute(
                     """
                     UPDATE public.api_settings
-                    SET model = %s, temperature = %s, top_p = %s, safety_settings = %s, api_key = %s, updated_at = NOW()
+                    SET model = %s, temperature = %s, top_p = %s, safety_settings = %s, api_key = %s, max_output_tokens = %s, updated_at = NOW()
                     WHERE id = 1;
                     """,
-                    (model, temperature, top_p, safety_settings_json, new_api_key),
+                    (
+                        model,
+                        temperature,
+                        top_p,
+                        safety_settings_json,
+                        new_api_key,
+                        max_output_tokens,
+                    ),  # <-- TAMBAHKAN DI SINI
                 )
                 print("✅ Pengaturan API dan API Key baru telah diupdate.")
             else:
@@ -1273,10 +1297,16 @@ def update_api_settings():
                 cur.execute(
                     """
                     UPDATE public.api_settings
-                    SET model = %s, temperature = %s, top_p = %s, safety_settings = %s, updated_at = NOW()
+                    SET model = %s, temperature = %s, top_p = %s, safety_settings = %s, max_output_tokens = %s, updated_at = NOW()
                     WHERE id = 1;
                     """,
-                    (model, temperature, top_p, safety_settings_json),
+                    (
+                        model,
+                        temperature,
+                        top_p,
+                        safety_settings_json,
+                        max_output_tokens,
+                    ),  # <-- TAMBAHKAN DI SINI
                 )
                 print("✅ Pengaturan API (tanpa API Key) telah diupdate.")
 
@@ -2081,13 +2111,8 @@ def summarize_manual_chunk(session_id):
             api_key_to_use = os.getenv("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key_to_use)
 
-            # 1. Siapkan 'tiket bebas sensor' (safety settings) di sini
-            # 1. Siapkan 'tiket bebas sensor' (safety settings) sebagai list biasa
-            # ... (di dalam summarize_manual_chunk)
-
-            # Siapkan safety settings
-            # 1. Siapkan safety settings seperti biasa
-            summarization_safety_settings = [
+            # Siapkan tiket bebas sensor di sini
+            safety_settings_bebas = [
                 types.SafetySetting(
                     category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
                     threshold=types.HarmBlockThreshold.BLOCK_NONE,
@@ -2106,19 +2131,18 @@ def summarize_manual_chunk(session_id):
                 ),
             ]
 
-            # 2. BUNGKUS SEMUANYA ke dalam satu objek GenerateContentConfig
+            # INI BAGIAN YANG DIPERBAIKI
             summarization_config_object = types.GenerateContentConfig(
-                temperature=1.0, safety_settings=summarization_safety_settings
+                temperature=1.0, safety_settings=safety_settings_bebas
             )
 
-            # 3. Panggil API dengan SATU parameter konfigurasi bernama 'config'
+            # 2. Panggil API dengan SATU argumen 'config'
             response = client.models.generate_content(
                 model=selected_model,
                 contents=[summarization_prompt],
-                config=summarization_config_object,  # <-- INI KUNCI UTAMANYA
+                config=summarization_config_object,  # <--- PAKE LOGIKA DARI BACKUP KAMU
             )
 
-            # --- BLOK EKSTRAKSI TEKS YANG LEBIH AMAN ---
             new_summary_chunk = None
             try:
                 # Cara 1: Coba ambil .text langsung. Ini cara paling umum.
